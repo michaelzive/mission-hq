@@ -8,7 +8,6 @@ import com.family.missionhq.push.PushRequested;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -37,7 +36,6 @@ public class SquadService {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
-    @Transactional(propagation = Propagation.MANDATORY)
     public void onPointsAwarded(PointsAwarded ev) {
         if (ev.points() <= 0) return;
         var kid = kids.findById(ev.kidId()).orElseThrow();

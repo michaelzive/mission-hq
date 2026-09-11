@@ -11,8 +11,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -44,7 +42,6 @@ public class RankService {
 
     /** Runs inside the awarding transaction (BEFORE_COMMIT) so the rank-up celebration is queued atomically after the points one. */
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
-    @Transactional(propagation = Propagation.MANDATORY)
     public void onPointsAwarded(PointsAwarded ev) {
         var kid = kids.findById(ev.kidId()).orElseThrow();
         var ladder = ranks.findByThemeCodeOrderByOrdinalAsc(kid.getThemeCode());
