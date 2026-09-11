@@ -1,0 +1,23 @@
+# --- Java / Maven (missionhq-backend) ---
+target/
+*.jar
+*.war
+!.mvn/wrapper/*.jar
+
+# --- Node / Angular (missionhq-web) ---
+# missionhq-web/.gitignore covers dist, node_modules and .angular/cache
+
+# --- IDE ---
+# Ignored wholesale: .idea holds dataSources.local.xml, which stores DB credentials.
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# --- OS ---
+Thumbs.db
+.DS_Store
+
+# --- Local env ---
+.env
+.env.local

@@ -1,0 +1,19 @@
+:root { // defaults; ThemeService overwrites these at runtime
+  --bg: #1b1d16; --panel: #262a1f; --panel2: #30362a; --ink: #efeadb; --ink2: #b8b39f; --accent: #f26b1d; --accent-ink: #1b1d16;
+  --good: #8fbf4d; --tan: #c9b27c; --line: #3c4233; --display: 'Chakra Petch', sans-serif; --body: 'Nunito', sans-serif; --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); -webkit-tap-highlight-color: transparent; user-select: none; }
+h1 { font: 700 34px var(--display); line-height: 1.1; }
+[data-theme="HERO"] h1 { font-weight: 400; font-size: 40px; letter-spacing: 1.5px; }
+.muted { color: var(--ink2); font-size: 14px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn { background: var(--accent); color: var(--accent-ink); border: 0; font: 800 15px var(--body); padding: 12px 20px; border-radius: var(--radius); cursor: pointer;
+  &.ghost { background: transparent; border: 2px solid var(--line); color: var(--ink); }
+  &:disabled { opacity: .4; cursor: default; } }
+input { font: inherit; padding: 10px 12px; border-radius: 8px; border: 2px solid var(--line); background: var(--panel); color: var(--ink); }
+.coin { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #ffd23f; border: 3px solid #b8860b; z-index: 8; pointer-events: none; box-shadow: inset -3px -3px 0 #e0a800; }
+.bump { animation: bump .5s cubic-bezier(.2,1.6,.3,1); }
+@keyframes bump { 30% { transform: scale(1.35); color: var(--good); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

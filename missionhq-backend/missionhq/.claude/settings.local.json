@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($c = @\\(\"C:\\\\Program Files\\\\JetBrains\\\\IntelliJ IDEA 2026.1.1\\\\plugins\\\\maven\\\\lib\\\\maven3\\\\bin\\\\mvn.cmd\",\"C:\\\\Users\\\\HousePrime\\\\AppData\\\\Local\\\\JetBrains\\\\IntelliJIdea2026.2\\\\plugins\\\\maven\\\\lib\\\\maven3\\\\bin\\\\mvn.cmd\"\\); foreach \\($x in $c\\) { if \\(Test-Path $x\\) { Write-Output \"FOUND: $x\" } else { Write-Output \"no:    $x\" } }; Write-Output \"--- wildcard ---\"; Get-ChildItem \"C:\\\\Program Files\\\\JetBrains\" -Recurse -Filter \"mvn.cmd\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)",
+      "PowerShell(& \"C:\\\\Program Files\\\\JetBrains\\\\IntelliJ IDEA 2026.1.1\\\\plugins\\\\maven-plugin\\\\lib\\\\maven3\\\\bin\\\\mvn.cmd\" -v)",
+      "PowerShell(& \"C:\\\\Program Files\\\\JetBrains\\\\IntelliJ IDEA 2026.1.1\\\\plugins\\\\maven-plugin\\\\lib\\\\maven3\\\\bin\\\\mvn.cmd\" -q wrapper:wrapper \"-Dmaven=3.9.16\")",
+      "PowerShell(.\\\\mvnw.cmd verify 2>&1)",
+      "PowerShell(docker info --format \"ServerVersion={{.ServerVersion}} OSType={{.OSType}}\"; Write-Output \"exit=$LASTEXITCODE\"; Write-Output \"--- context ---\"; docker context ls; Write-Output \"--- desktop process ---\"; Get-Process \"Docker Desktop\",\"com.docker.backend\" -ErrorAction SilentlyContinue | Select-Object Name,Id | Format-Table)"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+<h1>Approvals</h1>
+
+@if (household(); as hh) {
+  <section class="rate">
+    <label>Exchange rate: 1 point = {{ hh.currency }}</label>
+    <input type="number" step="0.1" min="0.1" [ngModel]="rate()" (ngModelChange)="rate.set($event)" />
+    <button class="btn small" [disabled]="rate() === hh.pointsPerCurrencyUnit" (click)="saveRate()">Save</button>
+    <span class="muted">Only affects prices set from now on.</span>
+  </section>
+}
+
+@if (error(); as e) { <p class="error">{{ e }}</p> }
+
+@if (empty()) {
+  <p class="muted big">Nothing waiting. Nice.</p>
+}
+
+@if (queue().missions.length) {
+  <h2>Mission reports <span class="count">{{ queue().missions.length }}</span></h2>
+  @for (m of queue().missions; track m.completionId) {
+    <article class="item" [class.busy]="isBusy(m.completionId)">
+      <button class="photo" [class.has]="m.photoUrl" (click)="m.photoUrl && lightbox.set(m.photoUrl)" [disabled]="!m.photoUrl">
+        @if (m.photoUrl; as u) { <img [src]="u" alt="Mission photo from {{ m.callsign }}" loading="lazy" /> } @else { <span>no photo</span> }
+      </button>
+      <div class="body">
+        <div class="head"><b>{{ m.callsign }}</b> · {{ m.title }} <span class="pts">+{{ m.points }}</span></div>
+        <div class="muted">submitted {{ m.submittedAt | date:'EEE HH:mm' }}</div>
+        <div class="row">
+          <span class="muted">Bonus:</span>
+          @for (b of bonusPresets; track b) {
+            <button class="chip" [class.on]="bonusFor(m) === b" (click)="setBonus(m, b)">{{ b === 0 ? 'none' : '+' + b }}</button>
+          }
+        </div>
+        <input class="note" placeholder="Note if sending back (optional)" [ngModel]="noteFor(m)" (ngModelChange)="setNote(m, $event)" />
+      </div>
+      <div class="actions">
+        <button class="btn go" (click)="approveMission(m)">Approve</button>
+        <button class="btn ghost" (click)="sendBack(m)">Ask again</button>
+      </div>
+    </article>
+  }
+}
+
+@if (queue().rewards.length) {
+  <h2>Reward suggestions <span class="count">{{ queue().rewards.length }}</span></h2>
+  @for (r of queue().rewards; track r.rewardId) {
+    <article class="item" [class.busy]="isBusy(r.rewardId)">
+      <div class="photo"><span>{{ r.category }}</span></div>
+      <div class="body">
+        <div class="head"><b>{{ r.callsign }}</b> suggested <b>{{ r.name }}</b></div>
+        <div class="muted">
+          @if (r.estimatedCost !== null) { about {{ r.estimatedCost | currency:'ZAR':'symbol-narrow':'1.0-0' }} · suggested {{ r.suggestedPrice }} pts }
+          @else { no cost given, price it manually }
+        </div>
+        <div class="row">
+          <label class="muted">Price</label>
+          <input type="number" class="price" min="1" [ngModel]="priceFor(r)" (ngModelChange)="setPrice(r, $event)" />
+          @if (isManual(r)) { <span class="tag">manual</span> }
+          <label class="muted">Tier</label>
+          @for (t of tiers; track t) {
+            <button class="chip" [class.on]="tierFor(r) === t" (click)="setTier(r, t)">{{ t }}</button>
+          }
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn go" (click)="approveReward(r)">Approve</button>
+        <button class="btn ghost" (click)="declineReward(r)">Decline</button>
+      </div>
+    </article>
+  }
+}
+
+@if (toast(); as t) { <div class="toast">{{ t }}</div> }
+
+@if (lightbox(); as url) {
+  <div class="lightbox" (click)="lightbox.set(null)">
+    <img [src]="url" alt="Mission photo" />
+    <p>tap to close</p>
+  </div>
+}

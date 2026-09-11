@@ -1,0 +1,44 @@
+<div class="tablet">
+  <kid-rail />
+
+  <main class="main">
+    @if (me(); as m) {
+      @if (m.termGoal; as g) {
+        <div class="goalwrap">
+          <div class="goalhead"><b>Term goal: {{ g.name }}</b><span class="muted">{{ g.progress }} / {{ g.target }}</span></div>
+          <div class="goalbar"><div class="goalfill" [style.width.%]="goalPct()"></div><span>{{ goalPct() }}%</span></div>
+        </div>
+      }
+      <div class="stats">
+        <div class="stat"><div class="n">{{ m.balance }}</div><div class="l">points to spend</div></div>
+        <div class="stat"><div class="n">{{ m.streakDays }}</div><div class="l">day streak</div></div>
+        <div class="stat"><div class="n">{{ m.rank.pointsToNext ?? '—' }}</div><div class="l">to next rank: {{ m.rank.nextName ?? 'max rank' }}</div></div>
+      </div>
+    }
+    <h2>{{ t().missions }}</h2>
+    <div class="grid">
+      @for (c of missions(); track c.behaviourId) {
+        <div class="card" [class.bonus]="c.bonus" [class.pending]="c.status === 'PENDING'" [class.approved]="c.status === 'APPROVED'"
+             [attr.data-behaviour]="c.behaviourId" (click)="open(c)">
+          <div class="p">+{{ c.points }}</div>
+          <div class="t">{{ c.bonus ? 'Daily bonus: ' : '' }}{{ c.title }}</div>
+          <div class="s">
+            @switch (c.status) {
+              @case ('TODO') { {{ c.bonus ? 'Expires tonight · photo proof' : 'Photo proof' }} }
+              @case ('PENDING') { Awaiting HQ… }
+              @case ('APPROVED') { {{ t().hqConfirmed }} }
+            }
+          </div>
+          @if (c.status === 'APPROVED') { <div class="stamp">{{ t().hqConfirmed }} ✓</div> }
+        </div>
+      } @empty { <p class="muted">No missions today. Enjoy it.</p> }
+    </div>
+    @if (error(); as e) { <p class="error">{{ e }}</p> }
+  </main>
+
+  <kid-celebration-player [balanceEl]="balanceLookup" [missionEl]="missionLookup" (played)="refreshMe()" (acked)="ack($event)" />
+</div>
+
+@if (sheet(); as m) {
+  <kid-mission-sheet [mission]="m" (cancel)="sheet.set(null)" (submitted)="submit($event)" />
+}

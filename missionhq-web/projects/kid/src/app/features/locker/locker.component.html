@@ -1,0 +1,49 @@
+<div class="tablet">
+  <kid-rail />
+  <main class="main">
+    <h1>{{ t().locker }}</h1>
+    <p class="muted">Change how you look. Some gear unlocks with rank; the rest is in the {{ t().shop }}.</p>
+
+    <div class="layout">
+      <div class="left">
+        <div class="preview"><kid-avatar [avatar]="avatar()" [size]="240" /></div>
+        <div class="callsign">{{ state.me()?.callsign }}</div>
+        @if (title(); as tl) { <div class="title">"{{ tl }}"</div> }
+        <div class="muted small">{{ ownedCount() }} items collected</div>
+        <div class="world">
+          <label>World</label>
+          <div class="row">
+            <button class="opt" [class.on]="theme.code() === 'AIRSOFT'" (click)="switchWorld('AIRSOFT')">Airsoft ops</button>
+            <button class="opt" [class.on]="theme.code() === 'HERO'" (click)="switchWorld('HERO')">Hero league</button>
+            <button class="opt locked" disabled>Space corps · Captain</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="right">
+        <label>Colour</label>
+        <div class="row">
+          @for (c of colours(); track $index) {
+            <button class="swatch" [class.on]="avatar().colour === $index" [style.background]="c" (click)="pickColour($index)" [attr.aria-label]="'Colour ' + ($index + 1)"></button>
+          }
+        </div>
+
+        @for (s of slots; track s.slot) {
+          @if (forSlot(s.slot).length) {
+            <label>{{ s.label }}</label>
+            <div class="row">
+              @for (i of forSlot(s.slot); track i.id) {
+                <button class="opt" [class.on]="i.equipped" [class.locked]="i.state === 'LOCKED'" [class.buy]="i.state === 'BUYABLE'" (click)="toggle(i)">
+                  {{ i.name }}
+                  @if (i.state === 'LOCKED') { <small>· {{ rankName(i.unlockRankOrdinal) }}</small> }
+                  @else if (i.state === 'BUYABLE') { <small>· {{ i.price }} pts in {{ t().shop }}</small> }
+                </button>
+              }
+            </div>
+          }
+        }
+      </div>
+    </div>
+    @if (error(); as e) { <p class="error">{{ e }}</p> }
+  </main>
+</div>

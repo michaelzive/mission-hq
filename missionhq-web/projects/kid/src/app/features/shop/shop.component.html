@@ -1,0 +1,95 @@
+<div class="tablet">
+  <kid-rail />
+
+  <main class="main">
+    <div class="head">
+      <div>
+        <h1>{{ t().shop }}</h1>
+        <p class="muted">You have <b class="bal">{{ balance() }}</b> points. Every point is worth R{{ state.me()?.pointsPerCurrencyUnit }}.</p>
+      </div>
+      <button class="btn" [disabled]="!canSuggest()" (click)="suggesting.set(true)">
+        + Suggest a reward @if (!canSuggest()) { <small>(3 waiting)</small> }
+      </button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" [class.on]="tab() === 'real'" (click)="tab.set('real')">Real rewards</button>
+      <button class="tab" [class.on]="tab() === 'gear'" (click)="tab.set('gear')">Gear for your operator</button>
+    </div>
+
+    @if (tab() === 'real') {
+      <div class="grid">
+        @for (r of sorted(); track r.id) {
+          <div class="item" [class.goal]="r.termGoal" [class.pending]="r.status === 'PENDING'" [class.can]="affordable(r)">
+            @if (r.suggestedByKid) { <span class="tag you">You suggested this</span> }
+            @else if (tierLabel(r)) { <span class="tag">{{ tierLabel(r) }}</span> }
+            <div class="name">{{ r.name }}</div>
+            @if (r.status === 'PENDING') {
+              <div class="cost muted">Waiting for {{ t().hq }}</div>
+              <button class="btn small ghost" disabled>Pending</button>
+            } @else {
+              <div class="cost">{{ r.price }} pts</div>
+              @if (affordable(r)) {
+                <button class="btn small" (click)="askRedeem(r)">Redeem</button>
+              } @else {
+                <div class="bar"><div class="fill" [style.width.%]="(balance() / (r.price || 1)) * 100"></div></div>
+                <button class="btn small ghost" disabled>Need {{ shortBy(r) }} more</button>
+              }
+            }
+          </div>
+        } @empty { <p class="muted">Nothing in the shop yet. Suggest something!</p> }
+      </div>
+    } @else {
+      <div class="gearhead">
+        <div class="mini"><kid-avatar [avatar]="state.me()?.avatar" [size]="72" /></div>
+        <p class="muted">Gear goes straight onto your operator when you buy it. Locked gear opens up as you rank up; some of it is free.</p>
+      </div>
+      <div class="grid">
+        @for (i of gear(); track i.id) {
+          <div class="item gear" [class.can]="canBuy(i)" [class.locked]="i.state === 'LOCKED'" [class.owned]="i.state === 'OWNED'" [attr.data-item]="i.id">
+            <span class="tag">{{ slotLabel(i) }}</span>
+            <div class="name">{{ i.name }}</div>
+            @switch (i.state) {
+              @case ('OWNED') {
+                <div class="cost muted">{{ i.equipped ? 'Wearing it' : 'In your locker' }}</div>
+                <button class="btn small ghost" disabled>Owned</button>
+              }
+              @case ('LOCKED') {
+                <div class="cost muted">{{ i.price === 0 ? 'Free' : i.price + ' pts' }}</div>
+                <button class="btn small ghost" disabled>Unlocks at {{ rankName(i.unlockRankOrdinal) }}</button>
+              }
+              @default {
+                <div class="cost">{{ i.price === 0 ? 'Free' : i.price + ' pts' }}</div>
+                @if (canBuy(i)) { <button class="btn small" (click)="buy(i)">{{ i.price === 0 ? 'Take it' : 'Buy' }}</button> }
+                @else { <button class="btn small ghost" disabled>Need {{ i.price - balance() }} more</button> }
+              }
+            }
+          </div>
+        } @empty { <p class="muted">No gear for this world yet.</p> }
+      </div>
+      @if (justBought(); as jb) { <div class="toast">{{ jb.name }} equipped. Check your {{ t().locker }}.</div> }
+    }
+
+    @if (error(); as e) { <p class="error">{{ e }}</p> }
+  </main>
+
+  <kid-celebration-player [balanceEl]="balanceLookup" [missionEl]="missionLookup" (played)="state.refresh()" (acked)="ack($event.id)" />
+  @if (toast(); as msg) { <div class="toast">{{ msg }}</div> }
+</div>
+
+@if (suggesting()) {
+  <kid-suggest-sheet (cancel)="suggesting.set(false)" (submitted)="suggest($event)" />
+}
+
+@if (confirming(); as r) {
+  <div class="modal" (click)="confirming.set(null)">
+    <div class="sheet" (click)="$event.stopPropagation()">
+      <h2>Redeem {{ r.name }}?</h2>
+      <p class="muted">That's {{ r.price }} points. You'll have {{ balance() - (r.price ?? 0) }} left. {{ t().hq }} will sort out the real thing.</p>
+      <div class="row end">
+        <button class="btn ghost" (click)="confirming.set(null)">Keep saving</button>
+        <button class="btn" (click)="redeem(r)">Yes, redeem it</button>
+      </div>
+    </div>
+  </div>
+}

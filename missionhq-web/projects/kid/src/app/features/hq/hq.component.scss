@@ -1,0 +1,24 @@
+.tablet { position: relative; min-height: 100vh; display: flex; overflow: hidden; }
+.main { flex: 1; padding: 22px 26px; overflow-y: auto; min-width: 0; }
+h2 { font: 700 22px var(--display); margin: 0 0 10px; }
+.goalwrap { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 18px; }
+.goalhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; b { font: 700 20px var(--display); } }
+.goalbar { height: 28px; background: var(--bg); border-radius: 14px; overflow: hidden; border: 2px solid var(--line); position: relative;
+  span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; mix-blend-mode: difference; } }
+.goalfill { height: 100%; background: var(--accent); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+.stats { display: flex; gap: 14px; margin-bottom: 18px; }
+.stat { flex: 1; background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+  .n { font: 700 30px var(--display); line-height: 1; display: inline-block; }
+  .l { font-size: 12px; color: var(--ink2); margin-top: 4px; } }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 16px; position: relative; cursor: pointer; overflow: hidden; min-height: 130px; display: flex; flex-direction: column; gap: 6px; transition: transform .12s, border-color .2s;
+  &:active { transform: scale(.96); }
+  &.bonus { border-color: var(--accent); border-style: dashed; }
+  &.pending { border-color: var(--tan); cursor: default; }
+  &.approved { border-color: var(--good); cursor: default; }
+  .t { font-weight: 800; font-size: 16px; }
+  .p { font: 700 22px var(--display); color: var(--accent); }
+  .s { font-size: 12px; color: var(--ink2); margin-top: auto; } }
+.stamp { position: absolute; inset: 0; background: var(--good); color: #101; display: flex; align-items: center; justify-content: center; font: 700 22px var(--display); opacity: .96; pointer-events: none; animation: slam .45s cubic-bezier(.2,1.5,.3,1); }
+.error { color: #ff5e5b; font-weight: 800; }
+@keyframes slam { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } }
