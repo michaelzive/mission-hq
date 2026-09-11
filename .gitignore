@@ -8,8 +8,10 @@ target/
 # missionhq-web/.gitignore covers dist, node_modules and .angular/cache
 
 # --- IDE ---
-# Ignored wholesale: .idea holds dataSources.local.xml, which stores DB credentials.
-.idea/
+# .idea is ignored except shared run configurations: dataSources.local.xml (DB credentials)
+# and workspace.xml stay local, .idea/runConfigurations/ is versioned for the whole team.
+**/.idea/*
+!**/.idea/runConfigurations/
 *.iml
 *.iws
 *.ipr
@@ -21,3 +23,6 @@ Thumbs.db
 # --- Local env ---
 .env
 .env.local
+
+# --- Claude Code (per-machine permission allowlist) ---
+**/.claude/settings.local.json

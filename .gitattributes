@@ -1,0 +1,15 @@
+# Normalise to LF in the repo and the working tree; mvnw and the Angular tooling expect LF,
+# and this silences core.autocrlf warnings on Windows.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binaries
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.jar binary
