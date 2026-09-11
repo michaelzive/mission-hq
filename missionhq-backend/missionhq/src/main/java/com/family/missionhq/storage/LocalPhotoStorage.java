@@ -23,7 +23,7 @@ public class LocalPhotoStorage implements PhotoStorage {
     private final byte[] secret;
 
     public LocalPhotoStorage(StorageProperties p) {
-        this.dir = Path.of(p.local().dir()).toAbsolutePath();
+        this.dir = Path.of(p.local().dir()).toAbsolutePath().normalize();
         this.baseUrl = p.local().publicBaseUrl();
         this.secret = p.signingSecret().getBytes(StandardCharsets.UTF_8);
         try { Files.createDirectories(dir); } catch (IOException e) { throw new IllegalStateException(e); }

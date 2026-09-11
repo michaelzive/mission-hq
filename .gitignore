@@ -24,5 +24,8 @@ Thumbs.db
 .env
 .env.local
 
+# --- Local photo storage (missionhq.storage.local.dir; uploaded user content, 30-day TTL) ---
+data/
+
 # --- Claude Code (per-machine permission allowlist) ---
 **/.claude/settings.local.json
