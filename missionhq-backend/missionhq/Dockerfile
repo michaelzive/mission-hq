@@ -1,7 +1,8 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 COPY . .
-RUN ./mvnw -q -DskipTests package || mvn -q -DskipTests package
+# the wrapper loses its executable bit when committed from Windows
+RUN chmod +x mvnw && ./mvnw -q -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
