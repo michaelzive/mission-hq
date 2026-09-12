@@ -1,0 +1,6 @@
+# Development profile: local runs and the deployed dev environment.
+# Activate with SPRING_PROFILES_ACTIVE=dev (the IntelliJ `backend` run config sets it).
+# Adds the demo household, kids, missions, rewards and paired devices from db/seed on top of the schema migrations.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed

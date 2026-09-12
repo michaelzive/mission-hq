@@ -35,15 +35,19 @@ ledger/       PointEntry (append-only) + LedgerService, the only writer of point
 rank/         RankDefinition ladder + RankService (listens to PointsAwarded)
 celebration/  Celebration queue the kid app drains and acks
 reward/       Reward catalogue, suggestions, pricing rules, Redemption
-security/     Device token filter for kids, HTTP Basic for the parent
+security/     Device token filter for kids; HTTP Basic against the parent table for parents (CurrentParent scopes every
+              parent endpoint to the signed-in parent's household)
 api/          Controllers: /api/v1/me/** (kid), /api/v1/** (parent), /api/v1/devices/pair
 ```
 
+## Parents and households
+Parents sign in with HTTP Basic against the `parent` table. `ParentBootstrap` runs at startup: if `PARENT_EMAIL` is unknown it
+creates a household plus that parent from `PARENT_PASSWORD`; if known, it re-syncs the password so rotating the env var works.
+That is the whole provisioning story for the first household. Additional parents/households are inserted directly for now —
+there is no sign-up or invite flow yet.
+
 ## Not yet in this cut
-- Presigned photo upload (`storage/`), photo purge job
-- Avatar / cosmetics / themes tables
-- Push notifications
-- Real parent accounts (currently one Basic-auth user from config; `PARENT_ID` is fixed at 1)
+- Parent sign-up / invites, password reset
 - Season reset
 
 ## Avatar & cosmetics (V3)

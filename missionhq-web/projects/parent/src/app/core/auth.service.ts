@@ -3,8 +3,8 @@ import { Injectable, signal } from '@angular/core';
 const KEY = 'missionhq.parent';
 
 /**
- * First cut: HTTP Basic against the single parent account in application.yml.
- * Credentials live in sessionStorage (cleared when the browser closes). Swap for JWT when real parent accounts land.
+ * HTTP Basic against the backend's parent table. Credentials live in sessionStorage (cleared when the browser closes);
+ * swap for a token when sign-up / password reset land.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {

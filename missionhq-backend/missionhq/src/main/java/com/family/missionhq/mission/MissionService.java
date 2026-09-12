@@ -2,6 +2,7 @@ package com.family.missionhq.mission;
 
 import com.family.missionhq.celebration.CelebrationService;
 import com.family.missionhq.common.DomainException;
+import com.family.missionhq.household.Parent;
 import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.ledger.LedgerService;
@@ -68,43 +69,50 @@ public class MissionService {
         c.setPhotoKey(photoKey);
         c.setSubmittedAt(Instant.now());
         var saved = completions.save(c);
-        events.publishEvent(PushRequested.parents("Mission report from " + kid.getCallsign(), b.getTitle() + " · " + b.getPoints() + " pts, waiting for your OK", "/approvals"));
+        events.publishEvent(PushRequested.parents(kid.getHouseholdId(), "Mission report from " + kid.getCallsign(), b.getTitle() + " · " + b.getPoints() + " pts, waiting for your OK", "/approvals"));
         return saved;
     }
 
     @Transactional
-    public void approve(Long completionId, Long parentId, int extraBonus) {
-        var c = completions.findById(completionId).orElseThrow(() -> DomainException.notFound("completion"));
-        if (c.getStatus() != MissionCompletion.Status.PENDING) throw DomainException.conflict("not pending");
+    public void approve(Long completionId, Parent parent, int extraBonus) {
+        var c = pendingFor(parent, completionId);
         var b = behaviours.findById(c.getBehaviourId()).orElseThrow();
         var kid = kids.findById(c.getKidId()).orElseThrow();
 
         c.setStatus(MissionCompletion.Status.APPROVED);
         c.setReviewedAt(Instant.now());
-        c.setReviewedBy(parentId);
+        c.setReviewedBy(parent.getId());
 
-        ledger.award(kid, b.getPoints(), PointEntry.Type.MISSION, c.getId(), b.getTitle(), parentId);
+        ledger.award(kid, b.getPoints(), PointEntry.Type.MISSION, c.getId(), b.getTitle(), parent.getId());
         celebrations.missionApproved(kid, c.getId(), b.getPoints(), b.getId());
         if (extraBonus > 0) {
-            ledger.award(kid, extraBonus, PointEntry.Type.BONUS, c.getId(), "HQ impressed", parentId);
+            ledger.award(kid, extraBonus, PointEntry.Type.BONUS, c.getId(), "HQ impressed", parent.getId());
             celebrations.bonus(kid, extraBonus, "HQ impressed");
         }
-        updateStreak(kid, c.getMissionDate(), parentId);
+        updateStreak(kid, c.getMissionDate(), parent.getId());
         events.publishEvent(PushRequested.kid(kid.getId(), "HQ has news for you", b.getTitle() + " confirmed. Open HQ to collect.", "/hq"));
     }
 
     @Transactional
-    public void sendBack(Long completionId, Long parentId, String note) {
-        var c = completions.findById(completionId).orElseThrow(() -> DomainException.notFound("completion"));
-        if (c.getStatus() != MissionCompletion.Status.PENDING) throw DomainException.conflict("not pending");
+    public void sendBack(Long completionId, Parent parent, String note) {
+        var c = pendingFor(parent, completionId);
         c.setStatus(MissionCompletion.Status.SENT_BACK);
         c.setReviewedAt(Instant.now());
-        c.setReviewedBy(parentId);
+        c.setReviewedBy(parent.getId());
         c.setNote(note);
         if (c.getPhotoKey() != null) photos.delete(c.getPhotoKey());
         c.setPhotoKey(null);
         var kid = kids.findById(c.getKidId()).orElseThrow();
         events.publishEvent(PushRequested.kid(kid.getId(), "HQ wants another look", note != null && !note.isBlank() ? note : "Have another go at " + behaviours.findById(c.getBehaviourId()).map(Behaviour::getTitle).orElse("that mission"), "/hq"));
+    }
+
+    /** A completion in another household reads as not found so ids never leak across families. */
+    private MissionCompletion pendingFor(Parent parent, Long completionId) {
+        var c = completions.findById(completionId)
+                .filter(x -> kids.findById(x.getKidId()).map(k -> k.getHouseholdId().equals(parent.getHouseholdId())).orElse(false))
+                .orElseThrow(() -> DomainException.notFound("completion"));
+        if (c.getStatus() != MissionCompletion.Status.PENDING) throw DomainException.conflict("not pending");
+        return c;
     }
 
     /** One approved mission per calendar day keeps the streak alive; a gap resets it. */

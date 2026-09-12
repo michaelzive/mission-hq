@@ -50,7 +50,7 @@ public class SquadService {
                 var squad = kids.findByHouseholdId(kid.getHouseholdId());
                 squad.forEach(k -> celebrations.squadMilestone(k, goal.getName(), m));
                 squad.forEach(k -> events.publishEvent(PushRequested.kid(k.getId(), "Squad goal " + m + "%", goal.getName(), "/squad")));
-                if (m == 100) events.publishEvent(PushRequested.parents("Squad goal reached", goal.getName() + " — time to book it", "/kids"));
+                if (m == 100) events.publishEvent(PushRequested.parents(kid.getHouseholdId(), "Squad goal reached", goal.getName() + " — time to book it", "/kids"));
             }
         }
     }

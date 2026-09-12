@@ -1,6 +1,7 @@
 package com.family.missionhq.push;
 
 import com.family.missionhq.security.CurrentKid;
+import com.family.missionhq.security.CurrentParent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -9,9 +10,9 @@ import java.util.Map;
 
 @RestController @RequestMapping("/api/v1") @RequiredArgsConstructor
 public class PushController {
-    private static final Long PARENT_ID = 1L;
     private final PushSubscriptionRepository subs;
-    private final CurrentKid current;
+    private final CurrentKid currentKid;
+    private final CurrentParent currentParent;
     @Value("${missionhq.push.public-key}") private String publicKey;
 
     public record SubscriptionRequest(String endpoint, Keys keys) { public record Keys(String p256dh, String auth) {} }
@@ -21,13 +22,13 @@ public class PushController {
     public Map<String, String> publicKey() { return Map.of("publicKey", publicKey == null ? "" : publicKey); }
 
     @PostMapping("/me/push/subscribe")
-    public void subscribeKid(@RequestBody SubscriptionRequest body) { save(PushSubscription.OwnerType.KID, current.get().getId(), body); }
+    public void subscribeKid(@RequestBody SubscriptionRequest body) { save(PushSubscription.OwnerType.KID, currentKid.get().getId(), body); }
 
     @DeleteMapping("/me/push/subscribe")
     public void unsubscribeKid(@RequestBody SubscriptionRequest body) { subs.findByEndpoint(body.endpoint()).ifPresent(subs::delete); }
 
     @PostMapping("/push/subscribe")
-    public void subscribeParent(@RequestBody SubscriptionRequest body) { save(PushSubscription.OwnerType.PARENT, PARENT_ID, body); }
+    public void subscribeParent(@RequestBody SubscriptionRequest body) { save(PushSubscription.OwnerType.PARENT, currentParent.get().getId(), body); }
 
     @DeleteMapping("/push/subscribe")
     public void unsubscribeParent(@RequestBody SubscriptionRequest body) { subs.findByEndpoint(body.endpoint()).ifPresent(subs::delete); }

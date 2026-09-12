@@ -34,7 +34,7 @@ export class LoginComponent {
     this.busy.set(true); this.error.set(null);
     this.auth.signIn(this.email, this.password);
     try { await this.api.household(); await this.router.navigate(['/approvals']); }
-    catch { this.auth.signOut(); this.error.set('Sign in failed. Check the email and password in application.yml.'); }
+    catch { this.auth.signOut(); this.error.set('Sign in failed. Check your email and password.'); }
     finally { this.busy.set(false); }
   }
 }

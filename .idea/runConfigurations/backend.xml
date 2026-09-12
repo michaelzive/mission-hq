@@ -1,6 +1,9 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="backend" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
     <module name="missionhq" />
+    <envs>
+      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+    </envs>
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.family.missionhq.MissionHqApplication" />
     <option name="WORKING_DIRECTORY" value="$MODULE_DIR$" />
     <method v="2">

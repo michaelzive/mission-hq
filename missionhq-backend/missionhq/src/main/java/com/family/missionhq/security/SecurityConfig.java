@@ -1,23 +1,19 @@
 package com.family.missionhq.security;
 
+import com.family.missionhq.household.ParentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
-/**
- * First cut: parents use HTTP Basic (single account from config), kids use device tokens.
- * Swap the in-memory parent for ParentRepository + JWT when you add multiple parents.
- */
+/** Parents use HTTP Basic against the parent table; kids use device tokens. */
 @Configuration @RequiredArgsConstructor
 public class SecurityConfig {
     private final DeviceTokenFilter deviceTokenFilter;
@@ -41,9 +37,8 @@ public class SecurityConfig {
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    UserDetailsService parentUsers(@Value("${missionhq.parent.email}") String email,
-                                   @Value("${missionhq.parent.password}") String password,
-                                   PasswordEncoder enc) {
-        return new InMemoryUserDetailsManager(User.withUsername(email).password(enc.encode(password)).roles("PARENT").build());
+    UserDetailsService parentUsers(ParentRepository parents) {
+        return email -> parents.findByEmail(email).map(ParentPrincipal::of)
+                .orElseThrow(() -> new UsernameNotFoundException("no parent with email " + email));
     }
 }

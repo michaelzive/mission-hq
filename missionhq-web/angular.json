@@ -66,6 +66,33 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "dev": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "8kB",
+                  "maximumError": "16kB"
+                }
+              ],
+              "outputHashing": "all",
+              "serviceWorker": "projects/kid/ngsw-config.json",
+              "fileReplacements": [
+                {
+                  "replace": "projects/kid/src/environments/environment.ts",
+                  "with": "projects/kid/src/environments/environment.dev.ts"
+                }
+              ],
+              "optimization": {
+                "scripts": true,
+                "styles": true,
+                "fonts": false
+              }
             }
           },
           "defaultConfiguration": "production"
@@ -82,6 +109,9 @@
             },
             "development": {
               "buildTarget": "kid:build:development"
+            },
+            "dev": {
+              "buildTarget": "kid:build:dev"
             }
           },
           "defaultConfiguration": "development"
@@ -176,6 +206,33 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "dev": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "8kB",
+                  "maximumError": "16kB"
+                }
+              ],
+              "outputHashing": "all",
+              "serviceWorker": "projects/parent/ngsw-config.json",
+              "fileReplacements": [
+                {
+                  "replace": "projects/parent/src/environments/environment.ts",
+                  "with": "projects/parent/src/environments/environment.dev.ts"
+                }
+              ],
+              "optimization": {
+                "scripts": true,
+                "styles": true,
+                "fonts": false
+              }
             }
           },
           "defaultConfiguration": "production"
@@ -192,6 +249,9 @@
             },
             "development": {
               "buildTarget": "parent:build:development"
+            },
+            "dev": {
+              "buildTarget": "parent:build:dev"
             }
           },
           "defaultConfiguration": "development"

@@ -57,7 +57,7 @@ public class RankService {
             kids.findByHouseholdId(kid.getHouseholdId()).stream()
                     .filter(s -> !s.getId().equals(kid.getId()))
                     .forEach(s -> { celebrations.siblingRankUp(s, kid.getCallsign(), name); events.publishEvent(PushRequested.kid(s.getId(), "Squad news", kid.getCallsign() + " just made " + name, "/squad")); });
-            events.publishEvent(PushRequested.parents(kid.getCallsign() + " ranked up", "Now " + name, "/kids"));
+            events.publishEvent(PushRequested.parents(kid.getHouseholdId(), kid.getCallsign() + " ranked up", "Now " + name, "/kids"));
         }
     }
 }

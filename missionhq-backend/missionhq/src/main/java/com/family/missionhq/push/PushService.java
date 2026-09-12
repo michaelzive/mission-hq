@@ -1,5 +1,7 @@
 package com.family.missionhq.push;
 
+import com.family.missionhq.household.Parent;
+import com.family.missionhq.household.ParentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import nl.martijndwars.webpush.Notification;
@@ -23,15 +25,16 @@ import java.util.Map;
 @Service @Slf4j
 public class PushService {
     private final PushSubscriptionRepository subs;
+    private final ParentRepository parents;
     private final ObjectMapper json;
     private final nl.martijndwars.webpush.PushService client;
     private final boolean enabled;
 
-    public PushService(PushSubscriptionRepository subs, ObjectMapper json,
+    public PushService(PushSubscriptionRepository subs, ParentRepository parents, ObjectMapper json,
                        @Value("${missionhq.push.public-key}") String publicKey,
                        @Value("${missionhq.push.private-key}") String privateKey,
                        @Value("${missionhq.push.subject}") String subject) throws Exception {
-        this.subs = subs; this.json = json;
+        this.subs = subs; this.parents = parents; this.json = json;
         this.enabled = publicKey != null && !publicKey.isBlank();
         if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
         this.client = enabled ? new nl.martijndwars.webpush.PushService(publicKey, privateKey, subject) : null;
@@ -42,7 +45,9 @@ public class PushService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(PushRequested ev) {
         if (!enabled) return;
-        List<PushSubscription> targets = ev.ownerId() == null ? subs.findByOwnerType(ev.to()) : subs.findByOwnerTypeAndOwnerId(ev.to(), ev.ownerId());
+        List<PushSubscription> targets = ev.to() == PushSubscription.OwnerType.KID
+                ? subs.findByOwnerTypeAndOwnerId(ev.to(), ev.ownerId())
+                : subs.findByOwnerTypeAndOwnerIdIn(ev.to(), parents.findByHouseholdId(ev.householdId()).stream().map(Parent::getId).toList());
         for (var s : targets) send(s, ev);
     }
 

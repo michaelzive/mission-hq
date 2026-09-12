@@ -3,6 +3,7 @@ package com.family.missionhq.reward;
 import com.family.missionhq.celebration.CelebrationService;
 import com.family.missionhq.common.DomainException;
 import com.family.missionhq.household.HouseholdRepository;
+import com.family.missionhq.household.Parent;
 import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.ledger.LedgerService;
@@ -41,7 +42,7 @@ public class RewardService {
         r.setKidId(kid.getId()); r.setName(name); r.setCategory(category); r.setEstimatedCost(estimatedCost);
         r.setSuggestedByKid(true); r.setStatus(Reward.Status.PENDING);
         var saved = rewards.save(r);
-        events.publishEvent(PushRequested.parents(kid.getCallsign() + " suggested a reward", name, "/approvals"));
+        events.publishEvent(PushRequested.parents(kid.getHouseholdId(), kid.getCallsign() + " suggested a reward", name, "/approvals"));
         return saved;
     }
 
@@ -54,8 +55,8 @@ public class RewardService {
     }
 
     @Transactional
-    public Reward approve(Long rewardId, Integer price, Integer tier) {
-        var r = rewards.findById(rewardId).orElseThrow(() -> DomainException.notFound("reward"));
+    public Reward approve(Long rewardId, Parent parent, Integer price, Integer tier) {
+        var r = ownedBy(parent, rewardId);
         if (r.getStatus() != Reward.Status.PENDING) throw DomainException.conflict("not pending");
         int suggested = suggestedPrice(r);
         int finalPrice = price != null ? price : suggested;
@@ -69,15 +70,15 @@ public class RewardService {
     }
 
     @Transactional
-    public void decline(Long rewardId) {
-        var r = rewards.findById(rewardId).orElseThrow(() -> DomainException.notFound("reward"));
+    public void decline(Long rewardId, Parent parent) {
+        var r = ownedBy(parent, rewardId);
         r.setStatus(Reward.Status.DECLINED);
     }
 
     /** Prices only ever go down after approval. */
     @Transactional
-    public void reprice(Long rewardId, int newPrice) {
-        var r = rewards.findById(rewardId).orElseThrow(() -> DomainException.notFound("reward"));
+    public void reprice(Long rewardId, Parent parent, int newPrice) {
+        var r = ownedBy(parent, rewardId);
         if (r.getPrice() != null && newPrice > r.getPrice()) throw DomainException.badRequest("a price can only be lowered after approval");
         if (newPrice <= 0) throw DomainException.badRequest("price must be positive");
         r.setPrice(newPrice); r.setManualPrice(true);
@@ -94,13 +95,25 @@ public class RewardService {
         ledger.spend(kid, r.getPrice(), red.getId());
         celebrations.redeemed(kid, red.getId(), r.getTier(), r.getName());
         if (!r.isRepeatable()) r.setStatus(Reward.Status.RETIRED);
-        events.publishEvent(PushRequested.parents(kid.getCallsign() + " redeemed " + r.getName(), r.getPrice() + " pts. Time to make it happen.", "/approvals"));
+        events.publishEvent(PushRequested.parents(kid.getHouseholdId(), kid.getCallsign() + " redeemed " + r.getName(), r.getPrice() + " pts. Time to make it happen.", "/approvals"));
         return red;
     }
 
     @Transactional
-    public void fulfil(Long redemptionId, Long parentId) {
-        var red = redemptions.findById(redemptionId).orElseThrow(() -> DomainException.notFound("redemption"));
-        red.setFulfilledAt(Instant.now()); red.setFulfilledBy(parentId);
+    public void fulfil(Long redemptionId, Parent parent) {
+        var red = redemptions.findById(redemptionId)
+                .filter(x -> inHousehold(parent, x.getKidId()))
+                .orElseThrow(() -> DomainException.notFound("redemption"));
+        red.setFulfilledAt(Instant.now()); red.setFulfilledBy(parent.getId());
+    }
+
+    /** A reward in another household reads as not found so ids never leak across families. */
+    private Reward ownedBy(Parent parent, Long rewardId) {
+        return rewards.findById(rewardId).filter(r -> inHousehold(parent, r.getKidId()))
+                .orElseThrow(() -> DomainException.notFound("reward"));
+    }
+
+    private boolean inHousehold(Parent parent, Long kidId) {
+        return kids.findById(kidId).map(k -> k.getHouseholdId().equals(parent.getHouseholdId())).orElse(false);
     }
 }

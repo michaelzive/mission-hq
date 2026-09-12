@@ -1,0 +1,63 @@
+# Deploys the Spring Boot backend to Cloud Run.
+#   develop -> service missionhq-dev   (GitHub environment "dev")
+#   main    -> service missionhq-prod  (GitHub environment "prod")
+# Runtime configuration lives in the GitHub environment's variables/secrets (see DEPLOY.md), so the two
+# environments differ only by what is pasted there. The image is built by Cloud Build from the Dockerfile.
+name: Deploy backend
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['missionhq-backend/**', '.github/workflows/backend-deploy.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          service: missionhq-${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+          source: missionhq-backend/missionhq
+          flags: >-
+            --allow-unauthenticated --port=8080 --cpu=1 --memory=1Gi --cpu-boost
+            --min-instances=0 --max-instances=2 --concurrency=80 --timeout=60
+          env_vars: |
+            SPRING_PROFILES_ACTIVE=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+            DB_URL=${{ secrets.DB_URL }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            PARENT_EMAIL=${{ vars.PARENT_EMAIL }}
+            PARENT_PASSWORD=${{ secrets.PARENT_PASSWORD }}
+            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+            STORAGE_TYPE=s3
+            STORAGE_SECRET=${{ secrets.STORAGE_SECRET }}
+            S3_ENDPOINT=${{ vars.S3_ENDPOINT }}
+            S3_REGION=auto
+            S3_BUCKET=${{ vars.S3_BUCKET }}
+            S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }}
+            S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }}
+            VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
+            VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+            VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}
+
+      - name: Smoke test
+        run: curl -fsS --retry 5 --retry-delay 5 "${{ steps.deploy.outputs.url }}/actuator/health"
