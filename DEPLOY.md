@@ -15,6 +15,18 @@ so `CORS_ORIGINS` on the backend and `API_BASE_URL` on Pages are what tie the tw
 Do the steps in order — later ones need URLs from earlier ones. Everything is set up twice (dev and prod) except the
 GitHub repo and the service account.
 
+## Where things live
+
+| | dev | prod |
+|---|---|---|
+| Backend | `missionhq-dev` in GCP project `missionhq-zive`, `europe-west1` — https://missionhq-dev-qebt27j2ma-ew.a.run.app | `missionhq-prod`, same project/region |
+| Database | Neon project `missionhq-dev` (Frankfurt) | Neon project `missionhq-prod` |
+| Photos | R2 bucket `missionhq-photos-dev` | `missionhq-photos-prod` |
+| Parent login | `dad@example.com` (seeded demo household) | `PARENT_EMAIL` var |
+
+Secrets and variables are managed with the GitHub CLI: `gh secret set NAME --env dev` (prompts for the value) and
+`gh variable set NAME --env dev --body VALUE`; `gh secret list --env dev` / `gh variable list --env dev` to review.
+
 ## 0. GitHub
 
 1. Push this repo to GitHub and create a `develop` branch from `main`. Both workflows trigger on those two branches only.
@@ -27,9 +39,14 @@ Any Postgres 16 works. Recommended: [Neon](https://neon.tech) free tier — serv
 service does, no cost until you outgrow it. Cloud SQL is the "same cloud" option but has no free tier.
 
 Create a database per environment and note the JDBC URL. Neon's looks like
-`jdbc:postgresql://<host>/<db>?sslmode=require`. Flyway creates the schema on first boot (`db/migration`); the `dev`
-Spring profile also loads `db/seed` (demo household, kids, and the `dev-token-viper` / `dev-token-nova` device tokens —
-these are public knowledge, so the dev API is only ever demo data).
+`jdbc:postgresql://<host>/<db>?sslmode=require`. Neon shows two hosts; use the **direct** one (without `-pooler`) —
+Flyway's migration lock needs a single session, which the pooled endpoint doesn't guarantee. Postgres 16 is what the
+integration tests run against; a newer Neon default (18 at the time of writing) works but Flyway logs an "untested
+version" warning on startup.
+
+Flyway creates the schema on first boot (`db/migration`); the `dev` Spring profile also loads `db/seed` (demo household,
+kids, and the `dev-token-viper` / `dev-token-nova` device tokens — these are public knowledge, so the dev API is only
+ever demo data).
 
 ## 2. Cloudflare R2 (once per environment)
 
@@ -73,7 +90,7 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | var | `GCP_REGION` | e.g. `europe-west1` |
 | secret | `DB_URL` | JDBC URL from step 1 |
 | secret | `DB_USER` / `DB_PASSWORD` | from step 1 |
-| var | `PARENT_EMAIL` | your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot |
+| var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: `dad@example.com`, the seeded demo parent, so you land in the household that has the demo kids (any other address gets a new empty household) |
 | secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup |
 | var | `CORS_ORIGINS` | comma-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev,https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases) |
 | secret | `STORAGE_SECRET` | any long random string (signs photo URLs); `openssl rand -hex 32` |
@@ -89,6 +106,10 @@ so choose the names now and fill this in before the first backend deploy.
 
 Push to `develop`. The workflow deploys `missionhq-dev` and curls `/actuator/health`. The Cloud Run URL is in the
 job summary and in the GitHub environment's "deployment" link — you need it for step 6.
+
+The workflow only runs when a push touches `missionhq-backend/**` (or the workflow file). To deploy after changing only
+secrets or variables, trigger it by hand: `gh workflow run backend-deploy.yml --ref develop` (or `--ref main`), then
+`gh run watch`.
 
 Check the logs for `Bootstrapped household 1 with parent <email>`, then: `curl -u <email>:<password> <url>/api/v1/household`.
 
