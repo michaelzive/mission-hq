@@ -62,7 +62,7 @@ there is no sign-up or invite flow yet.
 - Flow: kid app `POST /me/missions/{behaviourId}/photo-url` → `PUT` the JPEG to `url` with the returned headers → `POST .../submit` with `photoKey`. Parent queue returns `photoUrl` (30-minute view link). Send-back deletes the photo; `PhotoPurgeJob` deletes approved photos after `photo-ttl-days`.
 
 ## Deploying
-`Dockerfile` builds a small JRE image (fits Render's free tier or an OCI Always Free VM). Environment: `DB_URL`, `DB_USER`, `DB_PASSWORD`, `PARENT_EMAIL`, `PARENT_PASSWORD`, `STORAGE_TYPE=s3` + `S3_*`, `STORAGE_SECRET`, and `CORS_ORIGINS` for the two PWA origins.
+Cloud Run per branch via `.github/workflows/backend-deploy.yml`; the full runbook (Postgres, R2, GCP, GitHub environments, Pages) is [`DEPLOY.md`](../../DEPLOY.md) at the repo root. The `Dockerfile` is a plain JRE image, so it also runs anywhere else that takes a container — only Cloud Run is automated.
 
 ## Push notifications (`push/`)
 Web Push with VAPID via `nl.martijndwars:web-push`. Generate keys once (`java -cp target/classes:... com.family.missionhq.push.VapidKeyGen`, or `npx web-push generate-vapid-keys`) and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Without a public key, push is silently disabled.

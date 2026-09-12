@@ -48,7 +48,7 @@ Load-bearing invariants, not obvious from any single file:
 - Components are `OnPush` by default; state is signals, so there's no manual change detection anywhere.
 - `kid` and `parent` are separate deployable PWAs (kid: fullscreen/landscape; parent: standalone/portrait) sharing everything reusable through `projects/shared`.
 - Each app has three environment files: `environment.ts` (used by `ng serve`), `environment.dev.ts`, `environment.prod.ts`. `angular.json` swaps the right one in per build configuration via `fileReplacements` — there is no runtime env switching.
-- Deployment shape: each app builds to static output for Cloudflare Pages; the backend runs on Cloud Run, one service per branch (`develop` → `missionhq-dev`, `main` → `missionhq-prod` — see `.github/workflows/backend-deploy.yml`). `scripts/pages-build.mjs` injects the deployed API URL into `environment.dev.ts`/`environment.prod.ts` at Pages build time.
+- Deployment shape: each app builds to static output for Cloudflare Pages; the backend runs on Cloud Run, one service per branch (`develop` → `missionhq-dev`, `main` → `missionhq-prod` — see `.github/workflows/backend-deploy.yml`). `scripts/pages-build.mjs` injects the deployed API URL into `environment.dev.ts`/`environment.prod.ts` at Pages build time. The provisioning runbook and the env var/secret names each environment needs are in `DEPLOY.md`.
 
 ## CI
 `.github/workflows/ci.yml` runs on every push to `main`/`develop` and on PRs: `./mvnw verify` for the backend (Testcontainers spins up real Postgres, so this exercises actual Flyway migrations) and `npm ci && npm run build && npm run build:dev` for the web workspace. There is no separate `npm test` step in CI currently.

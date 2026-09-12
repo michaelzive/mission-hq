@@ -38,10 +38,7 @@ Two things the service worker needs:
 1. A production build (`npm run build`); the SW is disabled in `ng serve`.
 2. HTTPS (or `localhost`). Plain `http://192.168.x.x` will run the app but not install it.
 
-Options that satisfy both, cheapest first:
-- **Cloudflare Pages** for each app (free, HTTPS, custom domain). `_redirects` is already in `public/` for SPA routing. Set `apiBaseUrl` in `environment.prod.ts` to the backend's public URL and allow that origin in the backend's `missionhq.cors.allowed-origins`.
-- **Cloudflare Tunnel** to expose your home PC's Spring Boot (and, while testing, the built frontends) over HTTPS without opening ports.
-- Same-origin: serve `dist/*/browser` from behind a reverse proxy that also fronts `/api`, then `apiBaseUrl` can stay `/api/v1`.
+Hosting is Cloudflare Pages, one project per app, built by `scripts/pages-build.mjs` which injects the backend URL from the Pages `API_BASE_URL` variable; `public/_redirects` handles SPA routing. Setup is in [`DEPLOY.md`](../DEPLOY.md) at the repo root.
 
 Font inlining is turned off in the production config so builds don't need internet access; fonts load from Google at runtime as before.
 
