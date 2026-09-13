@@ -92,7 +92,7 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | secret | `DB_USER` / `DB_PASSWORD` | from step 1 |
 | var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: `dad@example.com`, the seeded demo parent, so you land in the household that has the demo kids (any other address gets a new empty household) |
 | secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup |
-| var | `CORS_ORIGINS` | comma-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev,https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases) |
+| var | `CORS_ORIGINS` | **space**-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases). Not commas — the deploy action uses commas to separate env vars and silently drops everything after the first |
 | secret | `STORAGE_SECRET` | any long random string (signs photo URLs); `openssl rand -hex 32` |
 | var | `S3_ENDPOINT` / `S3_BUCKET` | from step 2 |
 | secret | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | from step 2 |
@@ -139,7 +139,8 @@ Pages only builds a branch when a push to it arrives *after* the project was con
 has a production build but no preview (or vice versa) until the next push to the other branch; a failed first build
 stays failed until "Retry deployment" or a new push.
 `public/_redirects` already handles SPA routing. If `CORS_ORIGINS` on the backend doesn't list these origins exactly
-(scheme + host, no trailing slash), the app loads but every API call fails in the console.
+(scheme + host, no trailing slash), the app loads but every API call fails in the console. To check what a running
+service actually has: `gcloud run services describe missionhq-prod --region europe-west1 --format='value(spec.template.spec.containers[0].env)'`.
 
 Custom domains are optional — pages.dev is HTTPS and installable. If you add one, add it to `CORS_ORIGINS` and the R2 CORS
 policy too.
