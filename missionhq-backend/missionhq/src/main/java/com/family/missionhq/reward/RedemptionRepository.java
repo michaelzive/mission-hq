@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface RedemptionRepository extends JpaRepository<Redemption, Long> {
     List<Redemption> findByFulfilledAtIsNullOrderByRedeemedAtAsc();
+    boolean existsByKidIdAndRewardId(Long kidId, Long rewardId);
 
     @Query("select r from Redemption r join Kid k on k.id = r.kidId where k.householdId = :householdId and r.fulfilledAt is null order by r.redeemedAt asc")
     List<Redemption> findOpenByHouseholdId(@Param("householdId") Long householdId);

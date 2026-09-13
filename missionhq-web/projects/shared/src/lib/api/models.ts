@@ -29,14 +29,16 @@ export type BehaviourKind = 'DAILY' | 'WEEKLY' | 'BONUS';
 export interface Behaviour { id: number; title: string; points: number; kind: BehaviourKind; requiresPhoto: boolean; bonusDate: string | null; active: boolean; }
 export type BehaviourInput = Omit<Behaviour, 'id'>;
 export const REWARD_CATEGORIES: RewardCategory[] = ['GEAR', 'GAME_TIME', 'OUTING', 'TREAT', 'OTHER'];
-export interface RewardAdmin { id: number; kidId: number; callsign: string; name: string; category: RewardCategory; price: number | null; tier: number | null; status: RewardStatus; suggestedByKid: boolean; termGoal: boolean; repeatable: boolean; }
-export interface RewardAdminInput { kidId: number; name: string; category: RewardCategory; price: number; termGoal: boolean; repeatable: boolean; retired: boolean; }
+/** kidId/callsign are null for a reward in everyone's shop. */
+export interface RewardAdmin { id: number; kidId: number | null; callsign: string | null; name: string; category: RewardCategory; price: number | null; tier: number | null; status: RewardStatus; suggestedByKid: boolean; termGoal: boolean; repeatable: boolean; }
+/** kidId null = everyone's shop. */
+export interface RewardAdminInput { kidId: number | null; name: string; category: RewardCategory; price: number; termGoal: boolean; repeatable: boolean; retired: boolean; }
 export interface OpenRedemption { id: number; kidId: number; callsign: string; rewardName: string; pricePaid: number; redeemedAt: string; }
 
 // ---- shop ----
 export type RewardStatus = 'PENDING' | 'ACTIVE' | 'DECLINED' | 'RETIRED';
 export interface Reward {
-  id: number; kidId: number; name: string; category: RewardCategory; estimatedCost: number | null;
+  id: number; kidId: number | null; name: string; category: RewardCategory; estimatedCost: number | null;
   price: number | null; tier: number | null; status: RewardStatus; suggestedByKid: boolean; manualPrice: boolean; termGoal: boolean; repeatable: boolean;
 }
 export interface RedeemResponse { redemptionId: number; pricePaid: number; }

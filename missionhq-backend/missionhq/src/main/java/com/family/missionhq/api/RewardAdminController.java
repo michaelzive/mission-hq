@@ -1,5 +1,6 @@
 package com.family.missionhq.api;
 
+import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.reward.Redemption;
 import com.family.missionhq.reward.Reward;
@@ -8,7 +9,6 @@ import com.family.missionhq.reward.RewardService;
 import com.family.missionhq.security.CurrentParent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +25,11 @@ public class RewardAdminController {
     private final RewardRepository rewardRepo;
     private final KidRepository kids;
 
+    /** kidId/callsign are null for a reward in everyone's shop. */
     public record RewardView(Long id, Long kidId, String callsign, String name, Reward.Category category, Integer price, Integer tier,
                              Reward.Status status, boolean suggestedByKid, boolean termGoal, boolean repeatable) {}
-    public record RewardInput(@NotNull Long kidId, @NotBlank @Size(max = 80) String name, Reward.Category category, @Positive int price,
+    /** kidId null = everyone's shop. */
+    public record RewardInput(Long kidId, @NotBlank @Size(max = 80) String name, Reward.Category category, @Positive int price,
                               boolean termGoal, boolean repeatable, boolean retired) {
         RewardService.Input toInput() { return new RewardService.Input(name, category, price, termGoal, repeatable, retired); }
     }
@@ -37,7 +39,10 @@ public class RewardAdminController {
     public List<RewardView> list() { return rewards.forHousehold(current.get()).stream().map(this::view).toList(); }
 
     @PostMapping("/rewards")
-    public RewardView create(@Valid @RequestBody RewardInput body) { return view(rewards.create(current.kid(body.kidId()), body.toInput())); }
+    public RewardView create(@Valid @RequestBody RewardInput body) {
+        var kid = body.kidId() == null ? null : current.kid(body.kidId());
+        return view(rewards.create(current.get(), kid, body.toInput()));
+    }
 
     @PutMapping("/rewards/{id}")
     public RewardView update(@PathVariable Long id, @Valid @RequestBody RewardInput body) { return view(rewards.update(current.get(), id, body.toInput())); }
@@ -48,13 +53,14 @@ public class RewardAdminController {
     }
 
     private RewardView view(Reward r) {
-        var k = kids.findById(r.getKidId()).orElseThrow();
-        return new RewardView(r.getId(), k.getId(), k.getCallsign(), r.getName(), r.getCategory(), r.getPrice(), r.getTier(), r.getStatus(), r.isSuggestedByKid(), r.isTermGoal(), r.isRepeatable());
+        var k = r.isShared() ? null : kids.findById(r.getKidId()).orElseThrow();
+        return new RewardView(r.getId(), k == null ? null : k.getId(), k == null ? null : k.getCallsign(), r.getName(), r.getCategory(), r.getPrice(), r.getTier(),
+                r.getStatus(), r.isSuggestedByKid(), r.isTermGoal(), r.isRepeatable());
     }
 
     private OpenRedemption view(Redemption red) {
-        var k = kids.findById(red.getKidId()).orElseThrow();
+        var k = kids.findById(red.getKidId()).map(Kid::getCallsign).orElse("?");
         var name = rewardRepo.findById(red.getRewardId()).map(Reward::getName).orElse("reward");
-        return new OpenRedemption(red.getId(), k.getId(), k.getCallsign(), name, red.getPricePaid(), red.getRedeemedAt());
+        return new OpenRedemption(red.getId(), red.getKidId(), k, name, red.getPricePaid(), red.getRedeemedAt());
     }
 }

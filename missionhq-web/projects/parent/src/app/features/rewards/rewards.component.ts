@@ -4,9 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { KidSummary, OpenRedemption, ParentApi, REWARD_CATEGORIES, RewardAdmin, RewardAdminInput, RewardCategory } from 'shared';
 
 const CATEGORY_LABEL: Record<RewardCategory, string> = { GEAR: 'Gear', GAME_TIME: 'Game time', OUTING: 'Outing', TREAT: 'Treat', OTHER: 'Other' };
+const EVERYONE = 0;
 const blank = (kidId: number): RewardAdminInput => ({ kidId, name: '', category: 'GEAR', price: 100, termGoal: false, repeatable: false, retired: false });
 
-/** Each kid's shop: what they can spend points on, the term goal they are saving for, and redemptions waiting to be delivered. */
+/**
+ * Each kid's shop plus everyone's shop: what they can spend points on, the term goal each is saving for, and redemptions
+ * waiting to be delivered. kidId 0 stands for "everyone" in the form and is sent as null.
+ */
 @Component({
   selector: 'parent-rewards',
   imports: [FormsModule, NgTemplateOutlet, DatePipe],
@@ -27,7 +31,8 @@ const blank = (kidId: number): RewardAdminInput => ({ kidId, name: '', category:
     <section class="card add">
       <div class="row">
         <label class="muted">For</label>
-        <select [ngModel]="draft().kidId" (ngModelChange)="setDraft({ kidId: +$event })">
+        <select [ngModel]="draft().kidId" (ngModelChange)="setDraft({ kidId: +$event, termGoal: +$event === 0 ? false : draft().termGoal })">
+          <option [value]="0">Everyone</option>
           @for (k of kids(); track k.id) { <option [value]="k.id">{{ k.callsign }}</option> }
         </select>
       </div>
@@ -35,40 +40,44 @@ const blank = (kidId: number): RewardAdminInput => ({ kidId, name: '', category:
       <div class="row"><button class="btn small go" [disabled]="!valid(draft()) || busy()" (click)="add()">Add reward</button></div>
     </section>
 
-    @if (!kids().length) { <p class="muted big">Add a kid first — rewards belong to a kid's shop.</p> }
+    <h2>Everyone's shop <span class="muted">every kid sees these</span></h2>
+    @if (!byKid()[0]?.length) { <p class="muted">Nothing shared yet.</p> }
+    @for (r of byKid()[0]; track r.id) { <ng-container *ngTemplateOutlet="card; context: { $implicit: r }" /> }
 
     @for (k of kids(); track k.id) {
       <h2>{{ k.callsign }}'s shop <span class="muted">{{ k.balance }} pts to spend</span></h2>
-      @if (!byKid()[k.id]?.length) { <p class="muted">Nothing in the shop yet.</p> }
-      @for (r of byKid()[k.id]; track r.id) {
-        <article class="card" [class.off]="r.status === 'RETIRED'">
-          @if (editing() === r.id) {
-            <ng-container *ngTemplateOutlet="form; context: { $implicit: edit, set: setEdit }" />
-            <div class="row">
-              <button class="btn small go" [disabled]="!valid(edit()) || busy()" (click)="save(r)">Save</button>
-              <button class="btn small ghost" (click)="editing.set(null)">Cancel</button>
-            </div>
-          } @else {
-            <div class="top">
-              <div class="who">
-                <b>{{ r.name }}</b> <span class="pts">{{ r.price }} pts</span>
-                @if (r.termGoal) { <span class="tag goal">term goal</span> } @else if (r.tier) { <span class="tag">tier {{ r.tier }}</span> }
-                <div class="muted">
-                  {{ categoryLabel[r.category] }}{{ r.repeatable ? ' · repeatable' : '' }}
-                  @if (r.status === 'PENDING') { · <b>suggested by {{ r.callsign }}, waiting in Approvals</b> }
-                  @if (r.status === 'RETIRED') { · <b>retired</b> }
-                </div>
-              </div>
-              @if (r.status !== 'PENDING') {
-                <button class="link" (click)="startEdit(r)">Edit</button>
-                <button class="link" (click)="toggle(r)">{{ r.status === 'RETIRED' ? 'Bring back' : 'Retire' }}</button>
-              }
-            </div>
-          }
-        </article>
-      }
+      @if (!byKid()[k.id]?.length) { <p class="muted">Nothing of their own yet.</p> }
+      @for (r of byKid()[k.id]; track r.id) { <ng-container *ngTemplateOutlet="card; context: { $implicit: r }" /> }
     }
     @if (toast(); as t) { <div class="toast">{{ t }}</div> }
+
+    <ng-template #card let-r>
+      <article class="card" [class.off]="r.status === 'RETIRED'">
+        @if (editing() === r.id) {
+          <ng-container *ngTemplateOutlet="form; context: { $implicit: edit, set: setEdit }" />
+          <div class="row">
+            <button class="btn small go" [disabled]="!valid(edit()) || busy()" (click)="save(r)">Save</button>
+            <button class="btn small ghost" (click)="editing.set(null)">Cancel</button>
+          </div>
+        } @else {
+          <div class="top">
+            <div class="who">
+              <b>{{ r.name }}</b> <span class="pts">{{ r.price }} pts</span>
+              @if (r.termGoal) { <span class="tag goal">term goal</span> } @else if (r.tier) { <span class="tag">tier {{ r.tier }}</span> }
+              <div class="muted">
+                {{ label(r) }}{{ r.repeatable ? ' · repeatable' : (r.kidId === null ? ' · once per kid' : '') }}
+                @if (r.status === 'PENDING') { · <b>suggested by {{ r.callsign }}, waiting in Approvals</b> }
+                @if (r.status === 'RETIRED') { · <b>retired</b> }
+              </div>
+            </div>
+            @if (r.status !== 'PENDING') {
+              <button class="link" (click)="startEdit(r)">Edit</button>
+              <button class="link" (click)="toggle(r)">{{ r.status === 'RETIRED' ? 'Bring back' : 'Retire' }}</button>
+            }
+          </div>
+        }
+      </article>
+    </ng-template>
 
     <ng-template #form let-model let-set="set">
       <div class="row">
@@ -80,7 +89,9 @@ const blank = (kidId: number): RewardAdminInput => ({ kidId, name: '', category:
         <input class="price" type="number" min="1" [ngModel]="model().price" (ngModelChange)="set({ price: +$event })" />
       </div>
       <div class="row">
-        <label class="check"><input type="checkbox" [ngModel]="model().termGoal" (ngModelChange)="set({ termGoal: $event })" /> Term goal (the big one on HQ; one per kid)</label>
+        @if (model().kidId) {
+          <label class="check"><input type="checkbox" [ngModel]="model().termGoal" (ngModelChange)="set({ termGoal: $event })" /> Term goal (the big one on HQ; one per kid)</label>
+        }
         <label class="check"><input type="checkbox" [ngModel]="model().repeatable" (ngModelChange)="set({ repeatable: $event })" /> Repeatable</label>
       </div>
     </ng-template>
@@ -116,12 +127,12 @@ export class RewardsComponent implements OnInit {
   readonly open = signal<OpenRedemption[]>([]);
   readonly byKid = computed(() => {
     const m: Record<number, RewardAdmin[]> = {};
-    for (const r of this.rewards()) (m[r.kidId] ??= []).push(r);
+    for (const r of this.rewards()) (m[r.kidId ?? EVERYONE] ??= []).push(r);
     return m;
   });
-  readonly draft = signal<RewardAdminInput>(blank(0));
+  readonly draft = signal<RewardAdminInput>(blank(EVERYONE));
   readonly editing = signal<number | null>(null);
-  readonly edit = signal<RewardAdminInput>(blank(0));
+  readonly edit = signal<RewardAdminInput>(blank(EVERYONE));
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly toast = signal<string | null>(null);
@@ -133,13 +144,13 @@ export class RewardsComponent implements OnInit {
     try {
       const [kids, rewards, open] = await Promise.all([this.api.kids(), this.api.rewards(), this.api.redemptions()]);
       this.kids.set(kids); this.rewards.set(rewards); this.open.set(open);
-      if (!this.draft().kidId && kids.length) this.setDraft({ kidId: kids[0].id });
     } catch { this.error.set('Could not load rewards.'); }
   }
 
-  valid(r: RewardAdminInput) { return r.kidId > 0 && r.name.trim().length > 0 && r.price > 0; }
+  valid(r: RewardAdminInput) { return r.name.trim().length > 0 && r.price > 0; }
+  label(r: RewardAdmin) { return CATEGORY_LABEL[r.category]; }
   startEdit(r: RewardAdmin) {
-    this.edit.set({ kidId: r.kidId, name: r.name, category: r.category, price: r.price ?? 1, termGoal: r.termGoal, repeatable: r.repeatable, retired: r.status === 'RETIRED' });
+    this.edit.set({ kidId: r.kidId ?? EVERYONE, name: r.name, category: r.category, price: r.price ?? 1, termGoal: r.termGoal, repeatable: r.repeatable, retired: r.status === 'RETIRED' });
     this.editing.set(r.id);
   }
 
@@ -147,9 +158,9 @@ export class RewardsComponent implements OnInit {
     if (!this.valid(this.draft()) || this.busy()) return;
     this.busy.set(true); this.error.set(null);
     try {
-      const r = await this.api.createReward({ ...this.draft(), name: this.draft().name.trim() });
-      this.draft.set(blank(r.kidId));
-      this.showToast(`${r.name} is in ${r.callsign}'s shop`);
+      const r = await this.api.createReward(this.payload(this.draft()));
+      this.draft.set(blank(this.draft().kidId ?? EVERYONE));
+      this.showToast(`${r.name} is in ${r.callsign ? r.callsign + "'s" : "everyone's"} shop`);
       await this.refresh();
     } catch (e) { this.error.set(this.message(e, 'Could not add that reward.')); }
     finally { this.busy.set(false); }
@@ -158,7 +169,7 @@ export class RewardsComponent implements OnInit {
   async save(r: RewardAdmin) {
     if (!this.valid(this.edit()) || this.busy()) return;
     this.busy.set(true); this.error.set(null);
-    try { await this.api.updateReward(r.id, { ...this.edit(), name: this.edit().name.trim() }); this.editing.set(null); await this.refresh(); }
+    try { await this.api.updateReward(r.id, this.payload(this.edit())); this.editing.set(null); await this.refresh(); }
     catch (e) { this.error.set(this.message(e, 'Could not save those changes.')); }
     finally { this.busy.set(false); }
   }
@@ -169,6 +180,9 @@ export class RewardsComponent implements OnInit {
       await this.refresh();
     } catch (e) { this.error.set(this.message(e, 'Could not update that reward.')); }
   }
+
+  /** Form state uses 0 for "everyone"; the API wants null. */
+  private payload(b: RewardAdminInput): RewardAdminInput { return { ...b, kidId: b.kidId || null, name: b.name.trim(), termGoal: b.kidId ? b.termGoal : false }; }
 
   async fulfil(r: OpenRedemption) {
     this.busy.set(true);

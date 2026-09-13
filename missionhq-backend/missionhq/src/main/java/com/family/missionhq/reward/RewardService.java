@@ -31,7 +31,7 @@ public class RewardService {
 
     @Transactional(readOnly = true)
     public List<Reward> catalogueFor(Kid kid) {
-        return rewards.findByKidIdAndStatusIn(kid.getId(), List.of(Reward.Status.ACTIVE, Reward.Status.PENDING));
+        return rewards.findCatalogue(kid.getId(), kid.getHouseholdId(), List.of(Reward.Status.ACTIVE, Reward.Status.PENDING));
     }
 
     @Transactional
@@ -49,8 +49,7 @@ public class RewardService {
     /** Price the parent sees pre-filled, derived from the household rate at this moment. */
     @Transactional(readOnly = true)
     public int suggestedPrice(Reward r) {
-        var kid = kids.findById(r.getKidId()).orElseThrow();
-        var hh = households.findById(kid.getHouseholdId()).orElseThrow();
+        var hh = households.findById(householdOf(r)).orElseThrow();
         return hh.suggestedPrice(r.getEstimatedCost());
     }
 
@@ -87,14 +86,16 @@ public class RewardService {
     @Transactional
     public Redemption redeem(Kid kid, Long rewardId) {
         var r = rewards.findById(rewardId).orElseThrow(() -> DomainException.notFound("reward"));
-        if (!r.getKidId().equals(kid.getId())) throw DomainException.forbidden("not your reward");
+        if (!r.isFor(kid)) throw DomainException.forbidden("not your reward");
         if (r.getStatus() != Reward.Status.ACTIVE) throw DomainException.conflict("reward not available");
+        // a one-off shared reward is once per kid, not once for whoever taps first
+        if (r.isShared() && !r.isRepeatable() && redemptions.existsByKidIdAndRewardId(kid.getId(), r.getId())) throw DomainException.conflict("you already redeemed that one");
         var red = new Redemption();
         red.setKidId(kid.getId()); red.setRewardId(r.getId()); red.setPricePaid(r.getPrice());
         redemptions.save(red);
         ledger.spend(kid, r.getPrice(), red.getId());
         celebrations.redeemed(kid, red.getId(), r.getTier(), r.getName());
-        if (!r.isRepeatable()) r.setStatus(Reward.Status.RETIRED);
+        if (!r.isRepeatable() && !r.isShared()) r.setStatus(Reward.Status.RETIRED);
         events.publishEvent(PushRequested.parents(kid.getHouseholdId(), kid.getCallsign() + " redeemed " + r.getName(), r.getPrice() + " pts. Time to make it happen.", "/approvals"));
         return red;
     }
@@ -119,11 +120,12 @@ public class RewardService {
     @Transactional(readOnly = true)
     public List<Redemption> openRedemptions(Parent parent) { return redemptions.findOpenByHouseholdId(parent.getHouseholdId()); }
 
-    /** Parent-created rewards go straight into the kid's shop, priced by the parent. */
+    /** Parent-created rewards go straight into the shop, priced by the parent. kid == null means everyone's shop. */
     @Transactional
-    public Reward create(Kid kid, Input in) {
+    public Reward create(Parent parent, Kid kid, Input in) {
         var r = new Reward();
-        r.setKidId(kid.getId()); r.setSuggestedByKid(false); r.setManualPrice(true);
+        if (kid != null) r.setKidId(kid.getId()); else r.setHouseholdId(parent.getHouseholdId());
+        r.setSuggestedByKid(false); r.setManualPrice(true);
         r.setStatus(in.retired() ? Reward.Status.RETIRED : Reward.Status.ACTIVE);
         apply(r, in);
         var saved = rewards.save(r);
@@ -146,6 +148,7 @@ public class RewardService {
         var name = in.name() == null ? "" : in.name().trim();
         if (name.isEmpty() || name.length() > 80) throw DomainException.badRequest("name must be 1-80 characters");
         if (in.price() <= 0) throw DomainException.badRequest("price must be positive");
+        if (in.termGoal() && r.isShared()) throw DomainException.badRequest("a term goal belongs to one kid");
         r.setName(name);
         r.setCategory(in.category() != null ? in.category() : Reward.Category.OTHER);
         r.setPrice(in.price());
@@ -163,8 +166,12 @@ public class RewardService {
 
     /** A reward in another household reads as not found so ids never leak across families. */
     private Reward ownedBy(Parent parent, Long rewardId) {
-        return rewards.findById(rewardId).filter(r -> inHousehold(parent, r.getKidId()))
+        return rewards.findById(rewardId).filter(r -> householdOf(r).equals(parent.getHouseholdId()))
                 .orElseThrow(() -> DomainException.notFound("reward"));
+    }
+
+    private Long householdOf(Reward r) {
+        return r.isShared() ? r.getHouseholdId() : kids.findById(r.getKidId()).map(Kid::getHouseholdId).orElse(-1L);
     }
 
     private boolean inHousehold(Parent parent, Long kidId) {

@@ -8,6 +8,8 @@ import com.family.missionhq.household.ParentRepository;
 import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.kid.KidService;
+import com.family.missionhq.ledger.LedgerService;
+import com.family.missionhq.ledger.PointEntry;
 import com.family.missionhq.mission.Behaviour;
 import com.family.missionhq.mission.BehaviourService;
 import com.family.missionhq.mission.MissionCompletion;
@@ -45,6 +47,7 @@ class TenancyIT {
     @Autowired BehaviourService behaviourService;
     @Autowired RewardService rewardService;
     @Autowired RewardRepository rewardRepo;
+    @Autowired LedgerService ledger;
     @Autowired ParentRepository parents;
     @Autowired HouseholdRepository households;
     @Autowired PasswordEncoder encoder;
@@ -92,8 +95,8 @@ class TenancyIT {
         var stranger = strangerParent();
         var home = parents.findByEmail("dad@example.com").orElseThrow();
         var kid = kidService.create(stranger.getHouseholdId(), "Rook", "HERO");
-        var goal1 = rewardService.create(kid, new RewardService.Input("Lego set", Reward.Category.GEAR, 600, true, false, false));
-        var goal2 = rewardService.create(kid, new RewardService.Input("Bike", Reward.Category.GEAR, 900, true, false, false));
+        var goal1 = rewardService.create(stranger, kid, new RewardService.Input("Lego set", Reward.Category.GEAR, 600, true, false, false));
+        var goal2 = rewardService.create(stranger, kid, new RewardService.Input("Bike", Reward.Category.GEAR, 900, true, false, false));
 
         assertThat(goal1.getTier()).isEqualTo(3);
         assertThat(rewardService.forHousehold(stranger)).extracting(Reward::getId).containsExactlyInAnyOrder(goal1.getId(), goal2.getId());
@@ -103,6 +106,29 @@ class TenancyIT {
                 .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
         assertThatThrownBy(() -> rewardService.update(stranger, goal1.getId(), new RewardService.Input("Lego set", Reward.Category.GEAR, 700, false, false, false)))
                 .isInstanceOf(DomainException.class).hasMessageContaining("only be lowered");
+    }
+
+    @Test void sharedRewardsReachEveryKidInTheHouseholdOncePerKid() {
+        var stranger = strangerParent();
+        var home = parents.findByEmail("dad@example.com").orElseThrow();
+        var a = kidService.create(stranger.getHouseholdId(), "Alpha", "AIRSOFT");
+        var b = kidService.create(stranger.getHouseholdId(), "Bravo", "HERO");
+        var movie = rewardService.create(stranger, null, new RewardService.Input("Movie night", Reward.Category.OUTING, 50, false, false, false));
+
+        assertThat(movie.isShared()).isTrue();
+        assertThat(rewardService.catalogueFor(a)).extracting(Reward::getId).contains(movie.getId());
+        assertThat(rewardService.catalogueFor(b)).extracting(Reward::getId).contains(movie.getId());
+        assertThat(rewardService.catalogueFor(kids.findById(1L).orElseThrow())).extracting(Reward::getId).doesNotContain(movie.getId());
+        assertThat(rewardService.forHousehold(home)).extracting(Reward::getId).doesNotContain(movie.getId());
+        assertThatThrownBy(() -> rewardService.create(stranger, null, new RewardService.Input("Bike", Reward.Category.GEAR, 900, true, false, false)))
+                .isInstanceOf(DomainException.class).hasMessageContaining("belongs to one kid");
+
+        ledger.award(a, 100, PointEntry.Type.BONUS, null, "test", stranger.getId());
+        ledger.award(b, 100, PointEntry.Type.BONUS, null, "test", stranger.getId());
+        rewardService.redeem(a, movie.getId());
+        assertThatThrownBy(() -> rewardService.redeem(a, movie.getId())).isInstanceOf(DomainException.class).hasMessageContaining("already redeemed");
+        rewardService.redeem(b, movie.getId());
+        assertThat(rewardRepo.findById(movie.getId()).orElseThrow().getStatus()).isEqualTo(Reward.Status.ACTIVE);
     }
 
     @Test void bootstrapSyncsTheConfiguredParentPassword() {
