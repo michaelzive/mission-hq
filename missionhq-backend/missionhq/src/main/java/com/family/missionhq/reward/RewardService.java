@@ -107,6 +107,60 @@ public class RewardService {
         red.setFulfilledAt(Instant.now()); red.setFulfilledBy(parent.getId());
     }
 
+    // ---- parent-side management ----
+
+    public record Input(String name, Reward.Category category, int price, boolean termGoal, boolean repeatable, boolean retired) {}
+
+    @Transactional(readOnly = true)
+    public List<Reward> forHousehold(Parent parent) {
+        return rewards.findByHouseholdIdAndStatusIn(parent.getHouseholdId(), List.of(Reward.Status.ACTIVE, Reward.Status.PENDING, Reward.Status.RETIRED));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Redemption> openRedemptions(Parent parent) { return redemptions.findOpenByHouseholdId(parent.getHouseholdId()); }
+
+    /** Parent-created rewards go straight into the kid's shop, priced by the parent. */
+    @Transactional
+    public Reward create(Kid kid, Input in) {
+        var r = new Reward();
+        r.setKidId(kid.getId()); r.setSuggestedByKid(false); r.setManualPrice(true);
+        r.setStatus(in.retired() ? Reward.Status.RETIRED : Reward.Status.ACTIVE);
+        apply(r, in);
+        var saved = rewards.save(r);
+        if (saved.isTermGoal() && saved.getStatus() == Reward.Status.ACTIVE) makeSoleTermGoal(saved);
+        return saved;
+    }
+
+    @Transactional
+    public Reward update(Parent parent, Long rewardId, Input in) {
+        var r = ownedBy(parent, rewardId);
+        if (r.getStatus() == Reward.Status.PENDING || r.getStatus() == Reward.Status.DECLINED) throw DomainException.conflict("suggestions are handled in Approvals");
+        if (r.getPrice() != null && in.price() > r.getPrice()) throw DomainException.badRequest("a price can only be lowered after approval");
+        r.setStatus(in.retired() ? Reward.Status.RETIRED : Reward.Status.ACTIVE);
+        apply(r, in);
+        if (r.isTermGoal() && r.getStatus() == Reward.Status.ACTIVE) makeSoleTermGoal(r);
+        return r;
+    }
+
+    private void apply(Reward r, Input in) {
+        var name = in.name() == null ? "" : in.name().trim();
+        if (name.isEmpty() || name.length() > 80) throw DomainException.badRequest("name must be 1-80 characters");
+        if (in.price() <= 0) throw DomainException.badRequest("price must be positive");
+        r.setName(name);
+        r.setCategory(in.category() != null ? in.category() : Reward.Category.OTHER);
+        r.setPrice(in.price());
+        r.setTier(Reward.tierFor(in.price()));
+        r.setTermGoal(in.termGoal());
+        r.setRepeatable(in.repeatable());
+    }
+
+    /** HQ shows one term goal per kid, so setting a new one clears the old. */
+    private void makeSoleTermGoal(Reward goal) {
+        rewards.findByKidIdAndStatusIn(goal.getKidId(), List.of(Reward.Status.ACTIVE)).stream()
+                .filter(o -> o.isTermGoal() && !o.getId().equals(goal.getId()))
+                .forEach(o -> o.setTermGoal(false));
+    }
+
     /** A reward in another household reads as not found so ids never leak across families. */
     private Reward ownedBy(Parent parent, Long rewardId) {
         return rewards.findById(rewardId).filter(r -> inHousehold(parent, r.getKidId()))

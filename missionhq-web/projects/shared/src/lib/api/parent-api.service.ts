@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, Behaviour, BehaviourInput, Household, KidInput, KidSummary } from './models';
+import { ApprovalQueue, Behaviour, BehaviourInput, Household, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -16,6 +16,11 @@ export class ParentApi {
   behaviours() { return firstValueFrom(this.http.get<Behaviour[]>('/behaviours')); }
   createBehaviour(body: BehaviourInput) { return firstValueFrom(this.http.post<Behaviour>('/behaviours', body)); }
   updateBehaviour(id: number, body: BehaviourInput) { return firstValueFrom(this.http.put<Behaviour>(`/behaviours/${id}`, body)); }
+  rewards() { return firstValueFrom(this.http.get<RewardAdmin[]>('/rewards')); }
+  createReward(body: RewardAdminInput) { return firstValueFrom(this.http.post<RewardAdmin>('/rewards', body)); }
+  updateReward(id: number, body: RewardAdminInput) { return firstValueFrom(this.http.put<RewardAdmin>(`/rewards/${id}`, body)); }
+  redemptions() { return firstValueFrom(this.http.get<OpenRedemption[]>('/redemptions')); }
+  fulfilRedemption(id: number) { return firstValueFrom(this.http.post<void>(`/redemptions/${id}/fulfil`, {})); }
   queue() { return firstValueFrom(this.http.get<ApprovalQueue>('/approvals')); }
   approveMission(id: number, bonusPoints: number) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/approve`, { bonusPoints })); }
   sendBack(id: number, note: string) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/send-back`, { note })); }

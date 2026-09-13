@@ -14,4 +14,7 @@ public interface RewardRepository extends JpaRepository<Reward, Long> {
 
     @Query("select r from Reward r join Kid k on k.id = r.kidId where k.householdId = :householdId and r.status = :status order by r.id asc")
     List<Reward> findByHouseholdIdAndStatusOrderByIdAsc(@Param("householdId") Long householdId, @Param("status") Reward.Status status);
+
+    @Query("select r from Reward r join Kid k on k.id = r.kidId where k.householdId = :householdId and r.status in :statuses order by r.kidId asc, r.termGoal desc, r.status asc, r.price asc, r.id asc")
+    List<Reward> findByHouseholdIdAndStatusIn(@Param("householdId") Long householdId, @Param("statuses") List<Reward.Status> statuses);
 }

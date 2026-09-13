@@ -13,6 +13,9 @@ import com.family.missionhq.mission.BehaviourService;
 import com.family.missionhq.mission.MissionCompletion;
 import com.family.missionhq.mission.MissionCompletionRepository;
 import com.family.missionhq.mission.MissionService;
+import com.family.missionhq.reward.Reward;
+import com.family.missionhq.reward.RewardRepository;
+import com.family.missionhq.reward.RewardService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,6 +43,8 @@ class TenancyIT {
     @Autowired KidRepository kids;
     @Autowired KidService kidService;
     @Autowired BehaviourService behaviourService;
+    @Autowired RewardService rewardService;
+    @Autowired RewardRepository rewardRepo;
     @Autowired ParentRepository parents;
     @Autowired HouseholdRepository households;
     @Autowired PasswordEncoder encoder;
@@ -81,6 +86,23 @@ class TenancyIT {
                 .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
         assertThatThrownBy(() -> behaviourService.create(stranger, new BehaviourService.Input("Test", 30, Behaviour.Kind.BONUS, true, null, true)))
                 .isInstanceOf(DomainException.class).hasMessageContaining("needs a date");
+    }
+
+    @Test void rewardsAreScopedAndOnlyOneTermGoalPerKid() {
+        var stranger = strangerParent();
+        var home = parents.findByEmail("dad@example.com").orElseThrow();
+        var kid = kidService.create(stranger.getHouseholdId(), "Rook", "HERO");
+        var goal1 = rewardService.create(kid, new RewardService.Input("Lego set", Reward.Category.GEAR, 600, true, false, false));
+        var goal2 = rewardService.create(kid, new RewardService.Input("Bike", Reward.Category.GEAR, 900, true, false, false));
+
+        assertThat(goal1.getTier()).isEqualTo(3);
+        assertThat(rewardService.forHousehold(stranger)).extracting(Reward::getId).containsExactlyInAnyOrder(goal1.getId(), goal2.getId());
+        assertThat(rewardService.forHousehold(home)).extracting(Reward::getId).doesNotContain(goal1.getId());
+        assertThat(rewardRepo.findByKidIdAndTermGoalTrueAndStatus(kid.getId(), Reward.Status.ACTIVE)).map(Reward::getId).contains(goal2.getId());
+        assertThatThrownBy(() -> rewardService.update(home, goal1.getId(), new RewardService.Input("Lego set", Reward.Category.GEAR, 600, false, false, false)))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
+        assertThatThrownBy(() -> rewardService.update(stranger, goal1.getId(), new RewardService.Input("Lego set", Reward.Category.GEAR, 700, false, false, false)))
+                .isInstanceOf(DomainException.class).hasMessageContaining("only be lowered");
     }
 
     @Test void bootstrapSyncsTheConfiguredParentPassword() {

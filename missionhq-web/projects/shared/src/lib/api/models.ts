@@ -28,6 +28,10 @@ export const THEME_CODES: ThemeCode[] = ['AIRSOFT', 'HERO'];
 export type BehaviourKind = 'DAILY' | 'WEEKLY' | 'BONUS';
 export interface Behaviour { id: number; title: string; points: number; kind: BehaviourKind; requiresPhoto: boolean; bonusDate: string | null; active: boolean; }
 export type BehaviourInput = Omit<Behaviour, 'id'>;
+export const REWARD_CATEGORIES: RewardCategory[] = ['GEAR', 'GAME_TIME', 'OUTING', 'TREAT', 'OTHER'];
+export interface RewardAdmin { id: number; kidId: number; callsign: string; name: string; category: RewardCategory; price: number | null; tier: number | null; status: RewardStatus; suggestedByKid: boolean; termGoal: boolean; repeatable: boolean; }
+export interface RewardAdminInput { kidId: number; name: string; category: RewardCategory; price: number; termGoal: boolean; repeatable: boolean; retired: boolean; }
+export interface OpenRedemption { id: number; kidId: number; callsign: string; rewardName: string; pricePaid: number; redeemedAt: string; }
 
 // ---- shop ----
 export type RewardStatus = 'PENDING' | 'ACTIVE' | 'DECLINED' | 'RETIRED';

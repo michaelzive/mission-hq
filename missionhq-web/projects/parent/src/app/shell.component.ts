@@ -13,6 +13,7 @@ import { PushService } from './core/push.service';
         <a routerLink="/approvals" routerLinkActive="on">Approvals</a>
         <a routerLink="/kids" routerLinkActive="on">Kids</a>
         <a routerLink="/missions" routerLinkActive="on">Missions</a>
+        <a routerLink="/rewards" routerLinkActive="on">Rewards</a>
       </nav>
       @if (push.supported() && push.state() !== 'granted') {
         <button class="link bell" (click)="push.enable()">{{ push.state() === 'denied' ? 'Alerts blocked' : 'Turn on alerts' }}</button>
