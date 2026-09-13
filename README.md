@@ -61,5 +61,5 @@ Pages (web). Provisioning the accounts, buckets, database and secrets is a one-t
 ## Status
 
 Single household in daily use is the current target; multi-household support is next (auth and data are already scoped
-by household; sign-up/invites are not built yet). Parents add and edit kids in the parent app; behaviours (missions)
-and rewards are still inserted in the database by hand.
+by household; sign-up/invites are not built yet). Parents manage kids and missions in the parent app; rewards and the
+squad goal are still inserted in the database by hand.

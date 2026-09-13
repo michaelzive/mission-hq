@@ -9,6 +9,7 @@ export const routes: Routes = [
     children: [
       { path: 'approvals', loadComponent: () => import('./features/approvals/approvals.component').then(m => m.ApprovalsComponent) },
       { path: 'kids', loadComponent: () => import('./features/kids/kids.component').then(m => m.KidsComponent) },
+      { path: 'missions', loadComponent: () => import('./features/missions/missions.component').then(m => m.MissionsComponent) },
       { path: '', pathMatch: 'full', redirectTo: 'approvals' },
     ],
   },

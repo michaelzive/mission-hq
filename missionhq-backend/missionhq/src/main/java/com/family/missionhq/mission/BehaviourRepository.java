@@ -5,4 +5,5 @@ import java.util.List;
 
 public interface BehaviourRepository extends JpaRepository<Behaviour, Long> {
     List<Behaviour> findByHouseholdIdAndActiveTrue(Long householdId);
+    List<Behaviour> findByHouseholdIdOrderByActiveDescIdAsc(Long householdId);
 }

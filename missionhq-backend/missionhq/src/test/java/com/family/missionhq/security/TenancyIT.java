@@ -8,6 +8,8 @@ import com.family.missionhq.household.ParentRepository;
 import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.kid.KidService;
+import com.family.missionhq.mission.Behaviour;
+import com.family.missionhq.mission.BehaviourService;
 import com.family.missionhq.mission.MissionCompletion;
 import com.family.missionhq.mission.MissionCompletionRepository;
 import com.family.missionhq.mission.MissionService;
@@ -37,6 +39,7 @@ class TenancyIT {
     @Autowired MissionCompletionRepository completions;
     @Autowired KidRepository kids;
     @Autowired KidService kidService;
+    @Autowired BehaviourService behaviourService;
     @Autowired ParentRepository parents;
     @Autowired HouseholdRepository households;
     @Autowired PasswordEncoder encoder;
@@ -63,6 +66,21 @@ class TenancyIT {
         assertThat(kids.findByHouseholdId(1L)).extracting(Kid::getId).doesNotContain(kid.getId());
         assertThatThrownBy(() -> kidService.update(kid, "Rookie", "NARNIA"))
                 .isInstanceOf(DomainException.class).hasMessageContaining("unknown world");
+    }
+
+    @Test void missionsAreScopedToTheParentsHousehold() {
+        var stranger = strangerParent();
+        var home = parents.findByEmail("dad@example.com").orElseThrow();
+        var input = new BehaviourService.Input(" Feed the dog ", 10, Behaviour.Kind.DAILY, false, null, true);
+        var b = behaviourService.create(stranger, input);
+
+        assertThat(b.getTitle()).isEqualTo("Feed the dog");
+        assertThat(behaviourService.forHousehold(stranger)).extracting(Behaviour::getId).containsExactly(b.getId());
+        assertThat(behaviourService.forHousehold(home)).extracting(Behaviour::getId).doesNotContain(b.getId());
+        assertThatThrownBy(() -> behaviourService.update(home, b.getId(), input))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
+        assertThatThrownBy(() -> behaviourService.create(stranger, new BehaviourService.Input("Test", 30, Behaviour.Kind.BONUS, true, null, true)))
+                .isInstanceOf(DomainException.class).hasMessageContaining("needs a date");
     }
 
     @Test void bootstrapSyncsTheConfiguredParentPassword() {

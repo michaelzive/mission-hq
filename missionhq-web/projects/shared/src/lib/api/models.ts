@@ -25,6 +25,9 @@ export interface Household { id: number; name: string; pointsPerCurrencyUnit: nu
 export interface KidSummary { id: number; callsign: string; themeCode: ThemeCode; balance: number; lifetimeEarned: number; streakDays: number; rankName: string; }
 export interface KidInput { callsign: string; themeCode: ThemeCode; }
 export const THEME_CODES: ThemeCode[] = ['AIRSOFT', 'HERO'];
+export type BehaviourKind = 'DAILY' | 'WEEKLY' | 'BONUS';
+export interface Behaviour { id: number; title: string; points: number; kind: BehaviourKind; requiresPhoto: boolean; bonusDate: string | null; active: boolean; }
+export type BehaviourInput = Omit<Behaviour, 'id'>;
 
 // ---- shop ----
 export type RewardStatus = 'PENDING' | 'ACTIVE' | 'DECLINED' | 'RETIRED';

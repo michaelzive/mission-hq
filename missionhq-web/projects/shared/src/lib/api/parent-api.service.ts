@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, Household, KidInput, KidSummary } from './models';
+import { ApprovalQueue, Behaviour, BehaviourInput, Household, KidInput, KidSummary } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -13,6 +13,9 @@ export class ParentApi {
   kids() { return firstValueFrom(this.http.get<KidSummary[]>('/kids')); }
   createKid(body: KidInput) { return firstValueFrom(this.http.post<KidSummary>('/kids', body)); }
   updateKid(id: number, body: KidInput) { return firstValueFrom(this.http.put<KidSummary>(`/kids/${id}`, body)); }
+  behaviours() { return firstValueFrom(this.http.get<Behaviour[]>('/behaviours')); }
+  createBehaviour(body: BehaviourInput) { return firstValueFrom(this.http.post<Behaviour>('/behaviours', body)); }
+  updateBehaviour(id: number, body: BehaviourInput) { return firstValueFrom(this.http.put<Behaviour>(`/behaviours/${id}`, body)); }
   queue() { return firstValueFrom(this.http.get<ApprovalQueue>('/approvals')); }
   approveMission(id: number, bonusPoints: number) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/approve`, { bonusPoints })); }
   sendBack(id: number, note: string) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/send-back`, { note })); }
