@@ -19,7 +19,7 @@ GitHub repo and the service account.
 
 | | dev | prod |
 |---|---|---|
-| Backend | `missionhq-dev` in GCP project `missionhq-zive`, `europe-west1` — https://missionhq-dev-qebt27j2ma-ew.a.run.app | `missionhq-prod`, same project/region |
+| Backend | `missionhq-dev` in GCP project `missionhq-zive`, `europe-west1` — https://missionhq-dev-qebt27j2ma-ew.a.run.app | `missionhq-prod`, same project/region — https://missionhq-prod-qebt27j2ma-ew.a.run.app |
 | Database | Neon project `missionhq-dev` (Frankfurt) | Neon project `missionhq-prod` |
 | Photos | R2 bucket `missionhq-photos-dev` | `missionhq-photos-prod` |
 | Parent login | `dad@example.com` (seeded demo household) | `PARENT_EMAIL` var |
@@ -129,7 +129,7 @@ Workers & Pages → Create → Pages → connect the GitHub repo. Do this twice:
 
 Environment variables, set separately for **Production** and **Preview**:
 
-- `NODE_VERSION` = `24` (Angular 22 needs a current Node; Pages' default is older)
+- `NODE_VERSION` = an exact current release, e.g. `24.21.0` — Angular 22.1 requires Node ≥ 24.15, and a bare `24` resolved to an older 24.x on Pages (`EBADENGINE` warnings in the build log)
 - `API_BASE_URL` = the Cloud Run URL from step 5 plus `/api/v1` — prod URL on Production, dev URL on Preview.
   `scripts/pages-build.mjs` writes it into `environment.prod.ts` / `environment.dev.ts` at build time and refuses to
   build without it.
