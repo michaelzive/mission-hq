@@ -23,6 +23,8 @@ export interface PendingReward { rewardId: number; kidId: number; callsign: stri
 export interface ApprovalQueue { missions: PendingMission[]; rewards: PendingReward[]; }
 export interface Household { id: number; name: string; pointsPerCurrencyUnit: number; currency: string; seasonName: string; }
 export interface KidSummary { id: number; callsign: string; themeCode: ThemeCode; balance: number; lifetimeEarned: number; streakDays: number; rankName: string; }
+export interface KidInput { callsign: string; themeCode: ThemeCode; }
+export const THEME_CODES: ThemeCode[] = ['AIRSOFT', 'HERO'];
 
 // ---- shop ----
 export type RewardStatus = 'PENDING' | 'ACTIVE' | 'DECLINED' | 'RETIRED';

@@ -7,6 +7,7 @@ import com.family.missionhq.household.Parent;
 import com.family.missionhq.household.ParentRepository;
 import com.family.missionhq.kid.Kid;
 import com.family.missionhq.kid.KidRepository;
+import com.family.missionhq.kid.KidService;
 import com.family.missionhq.mission.MissionCompletion;
 import com.family.missionhq.mission.MissionCompletionRepository;
 import com.family.missionhq.mission.MissionService;
@@ -35,6 +36,7 @@ class TenancyIT {
     @Autowired MissionService missions;
     @Autowired MissionCompletionRepository completions;
     @Autowired KidRepository kids;
+    @Autowired KidService kidService;
     @Autowired ParentRepository parents;
     @Autowired HouseholdRepository households;
     @Autowired PasswordEncoder encoder;
@@ -52,6 +54,17 @@ class TenancyIT {
         assertThat(completions.findById(completion.getId()).orElseThrow().getStatus()).isEqualTo(MissionCompletion.Status.PENDING);
     }
 
+    @Test void createdKidsLandInTheParentsHouseholdAndWorldsAreValidated() {
+        var stranger = strangerParent();
+        var kid = kidService.create(stranger.getHouseholdId(), "  Rookie ", "HERO");
+
+        assertThat(kid.getCallsign()).isEqualTo("Rookie");
+        assertThat(kids.findByHouseholdId(stranger.getHouseholdId())).extracting(Kid::getId).containsExactly(kid.getId());
+        assertThat(kids.findByHouseholdId(1L)).extracting(Kid::getId).doesNotContain(kid.getId());
+        assertThatThrownBy(() -> kidService.update(kid, "Rookie", "NARNIA"))
+                .isInstanceOf(DomainException.class).hasMessageContaining("unknown world");
+    }
+
     @Test void bootstrapSyncsTheConfiguredParentPassword() {
         var dev = parents.findByEmail("dad@example.com").orElseThrow();            // V3 seed, placeholder hash
         assertThat(encoder.matches("change-me", dev.getPasswordHash())).isTrue();  // application.yml default
@@ -60,7 +73,7 @@ class TenancyIT {
 
     private Parent strangerParent() {
         var hh = new Household(); hh.setName("Next door"); households.save(hh);
-        var p = new Parent(); p.setHouseholdId(hh.getId()); p.setName("Neighbour"); p.setEmail("neighbour@example.com"); p.setPasswordHash("x");
+        var p = new Parent(); p.setHouseholdId(hh.getId()); p.setName("Neighbour"); p.setEmail("neighbour-" + hh.getId() + "@example.com"); p.setPasswordHash("x");
         return parents.save(p);
     }
 }

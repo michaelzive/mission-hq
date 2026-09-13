@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, Household, KidSummary } from './models';
+import { ApprovalQueue, Household, KidInput, KidSummary } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -11,6 +11,8 @@ export class ParentApi {
   pushSubscribe(sub: PushSubscriptionJSON) { return firstValueFrom(this.http.post<void>('/push/subscribe', sub)); }
   household() { return firstValueFrom(this.http.get<Household>('/household')); }
   kids() { return firstValueFrom(this.http.get<KidSummary[]>('/kids')); }
+  createKid(body: KidInput) { return firstValueFrom(this.http.post<KidSummary>('/kids', body)); }
+  updateKid(id: number, body: KidInput) { return firstValueFrom(this.http.put<KidSummary>(`/kids/${id}`, body)); }
   queue() { return firstValueFrom(this.http.get<ApprovalQueue>('/approvals')); }
   approveMission(id: number, bonusPoints: number) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/approve`, { bonusPoints })); }
   sendBack(id: number, note: string) { return firstValueFrom(this.http.post<void>(`/approvals/missions/${id}/send-back`, { note })); }
