@@ -135,6 +135,9 @@ Environment variables, set separately for **Production** and **Preview**:
   build without it.
 
 Preview deployments build every non-`main` branch; the stable alias for `develop` is `https://develop.<project>.pages.dev`.
+Pages only builds a branch when a push to it arrives *after* the project was connected, so a freshly connected project
+has a production build but no preview (or vice versa) until the next push to the other branch; a failed first build
+stays failed until "Retry deployment" or a new push.
 `public/_redirects` already handles SPA routing. If `CORS_ORIGINS` on the backend doesn't list these origins exactly
 (scheme + host, no trailing slash), the app loads but every API call fails in the console.
 
