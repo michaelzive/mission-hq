@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -34,7 +35,15 @@ export class LoginComponent {
     this.busy.set(true); this.error.set(null);
     this.auth.signIn(this.email, this.password);
     try { await this.api.household(); await this.router.navigate(['/approvals']); }
-    catch { this.auth.signOut(); this.error.set('Sign in failed. Check your email and password.'); }
+    catch (e) { this.auth.signOut(); this.error.set(failure(e)); }
     finally { this.busy.set(false); }
   }
+}
+
+/** Only a 401 means bad credentials; a down or unreachable backend (status 0, or the dev proxy's 5xx) must not read as a typo. */
+function failure(e: unknown): string {
+  const status = e instanceof HttpErrorResponse ? e.status : -1;
+  if (status === 401) return 'Wrong email or password.';
+  if (status === 0 || status >= 500) return 'Could not reach the HQ server. Check that it is running, then try again.';
+  return 'Sign in failed. Try again in a moment.';
 }
