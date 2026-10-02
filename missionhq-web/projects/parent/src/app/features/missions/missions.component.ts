@@ -1,17 +1,21 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Behaviour, BehaviourInput, ParentApi } from 'shared';
+import { Behaviour, BehaviourInput, KidSummary, ParentApi } from 'shared';
 
-const BLANK: BehaviourInput = { title: '', points: 10, kind: 'DAILY', requiresPhoto: true, bonusDate: null, active: true };
+const EVERYONE = 0;
+const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10, kind: 'DAILY', requiresPhoto: true, bonusDate: null, active: true });
 
-/** The household's mission list: daily missions and one-day bonus missions, with points and whether a photo is needed. */
+/**
+ * The household's missions — for everyone or directed at one kid: daily missions and one-day bonus missions, with
+ * points and whether a photo is needed. kidId 0 stands for "everyone" in the form and is sent as null.
+ */
 @Component({
   selector: 'parent-missions',
   imports: [FormsModule, NgTemplateOutlet],
   template: `
     <h1>Missions</h1>
-    <p class="muted">Every kid in the household sees the same missions. Daily ones can be done once a day; a bonus mission only shows on its date.</p>
+    <p class="muted">A mission is for everyone or for one kid. Daily ones can be done once a day by each kid who sees them; a bonus mission only shows on its date.</p>
     @if (error(); as e) { <p class="error">{{ e }}</p> }
 
     <section class="card add">
@@ -22,8 +26,20 @@ const BLANK: BehaviourInput = { title: '', points: 10, kind: 'DAILY', requiresPh
     </section>
 
     @if (!missions().length) { <p class="muted big">No missions yet. Add the first one above — "Homework done" and "20 minutes reading" are good starters.</p> }
+    @else {
+      <h2>Everyone <span class="muted">every kid sees these</span></h2>
+      @if (!byKid()[0]?.length) { <p class="muted">Nothing for everyone yet.</p> }
+      @for (m of byKid()[0]; track m.id) { <ng-container *ngTemplateOutlet="card; context: { $implicit: m }" /> }
 
-    @for (m of missions(); track m.id) {
+      @for (k of kids(); track k.id) {
+        <h2>{{ k.callsign }}'s missions <span class="muted">only {{ k.callsign }} sees these</span></h2>
+        @if (!byKid()[k.id]?.length) { <p class="muted">Nothing just for {{ k.callsign }} yet.</p> }
+        @for (m of byKid()[k.id]; track m.id) { <ng-container *ngTemplateOutlet="card; context: { $implicit: m }" /> }
+      }
+    }
+    @if (toast(); as t) { <div class="toast">{{ t }}</div> }
+
+    <ng-template #card let-m>
       <article class="card" [class.off]="!m.active">
         @if (editing() === m.id) {
           <ng-container *ngTemplateOutlet="form; context: { $implicit: edit, set: setEdit }" />
@@ -45,10 +61,16 @@ const BLANK: BehaviourInput = { title: '', points: 10, kind: 'DAILY', requiresPh
           </div>
         }
       </article>
-    }
-    @if (toast(); as t) { <div class="toast">{{ t }}</div> }
+    </ng-template>
 
     <ng-template #form let-model let-set="set">
+      <div class="row">
+        <label class="muted">For</label>
+        <select [ngModel]="model().kidId" (ngModelChange)="set({ kidId: +$event })">
+          <option [value]="0">Everyone</option>
+          @for (k of kids(); track k.id) { <option [value]="k.id">{{ k.callsign }}</option> }
+        </select>
+      </div>
       <div class="row">
         <input class="title" placeholder="Mission, e.g. Homework done" maxlength="80" [ngModel]="model().title" (ngModelChange)="set({ title: $event })" />
         <label class="muted">Points</label>
@@ -68,6 +90,7 @@ const BLANK: BehaviourInput = { title: '', points: 10, kind: 'DAILY', requiresPh
   `,
   styles: `
     h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+    h2 { font-size: 17px; font-weight: 800; margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; }
     .big { font-size: 16px; margin: 24px 0; }
     .card { background: #fff; border: 1px solid #e3e0d8; border-radius: 14px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
     .card.off { opacity: .6; }
@@ -86,10 +109,16 @@ const BLANK: BehaviourInput = { title: '', points: 10, kind: 'DAILY', requiresPh
 })
 export class MissionsComponent implements OnInit {
   private readonly api = inject(ParentApi);
+  readonly kids = signal<KidSummary[]>([]);
   readonly missions = signal<Behaviour[]>([]);
-  readonly draft = signal<BehaviourInput>({ ...BLANK });
+  readonly byKid = computed(() => {
+    const m: Record<number, Behaviour[]> = {};
+    for (const b of this.missions()) (m[b.kidId ?? EVERYONE] ??= []).push(b);
+    return m;
+  });
+  readonly draft = signal<BehaviourInput>(blank(EVERYONE));
   readonly editing = signal<number | null>(null);
-  readonly edit = signal<BehaviourInput>({ ...BLANK });
+  readonly edit = signal<BehaviourInput>(blank(EVERYONE));
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly toast = signal<string | null>(null);
@@ -97,18 +126,23 @@ export class MissionsComponent implements OnInit {
   readonly setEdit = (patch: Partial<BehaviourInput>) => this.edit.update(d => ({ ...d, ...patch }));
 
   async ngOnInit() { await this.refresh(); }
-  async refresh() { try { this.missions.set(await this.api.behaviours()); } catch { this.error.set('Could not load missions.'); } }
+  async refresh() {
+    try {
+      const [kids, missions] = await Promise.all([this.api.kids(), this.api.behaviours()]);
+      this.kids.set(kids); this.missions.set(missions);
+    } catch { this.error.set('Could not load missions.'); }
+  }
 
   valid(b: BehaviourInput) { return b.title.trim().length > 0 && b.points > 0 && (b.kind !== 'BONUS' || !!b.bonusDate); }
-  startEdit(m: Behaviour) { const { id, ...rest } = m; this.edit.set(rest); this.editing.set(m.id); }
+  startEdit(m: Behaviour) { const { id, callsign, ...rest } = m; this.edit.set({ ...rest, kidId: m.kidId ?? EVERYONE }); this.editing.set(m.id); }
 
   async add() {
     if (!this.valid(this.draft()) || this.busy()) return;
     this.busy.set(true); this.error.set(null);
     try {
       const m = await this.api.createBehaviour(this.clean(this.draft()));
-      this.draft.set({ ...BLANK });
-      this.showToast(`"${m.title}" added — it's on the tablets from now`);
+      this.draft.set(blank(this.draft().kidId ?? EVERYONE));
+      this.showToast(`"${m.title}" added — it's on ${m.callsign ? m.callsign + "'s tablet" : 'the tablets'} from now`);
       await this.refresh();
     } catch { this.error.set('Could not add that mission.'); }
     finally { this.busy.set(false); }
@@ -123,11 +157,12 @@ export class MissionsComponent implements OnInit {
   }
 
   async toggle(m: Behaviour) {
-    const { id, ...rest } = m;
+    const { id, callsign, ...rest } = m;
     try { await this.api.updateBehaviour(id, { ...rest, active: !m.active }); await this.refresh(); }
     catch { this.error.set('Could not update that mission.'); }
   }
 
-  private clean(b: BehaviourInput): BehaviourInput { return { ...b, title: b.title.trim(), bonusDate: b.kind === 'BONUS' ? b.bonusDate : null }; }
+  /** Form state uses 0 for "everyone"; the API wants null. */
+  private clean(b: BehaviourInput): BehaviourInput { return { ...b, kidId: b.kidId || null, title: b.title.trim(), bonusDate: b.kind === 'BONUS' ? b.bonusDate : null }; }
   private showToast(msg: string) { this.toast.set(msg); setTimeout(() => this.toast.set(null), 2500); }
 }

@@ -21,6 +21,7 @@
         <div class="card" [class.bonus]="c.bonus" [class.pending]="c.status === 'PENDING'" [class.approved]="c.status === 'APPROVED'"
              [attr.data-behaviour]="c.behaviourId" (click)="open(c)">
           <div class="p">+{{ c.points }}</div>
+          @if (c.forMe) { <div class="tag">Just for you</div> }
           <div class="t">{{ c.bonus ? 'Daily bonus: ' : '' }}{{ c.title }}</div>
           <div class="s">
             @switch (c.status) {

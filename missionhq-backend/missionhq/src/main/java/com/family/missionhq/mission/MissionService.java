@@ -28,30 +28,32 @@ public class MissionService {
     private final PhotoStorage photos;
     private final ApplicationEventPublisher events;
 
-    public record MissionCard(Long behaviourId, String title, int points, boolean bonus, boolean requiresPhoto, String status) {}
+    /** {@code forMe}: directed at this kid alone rather than everyone in the household. */
+    public record MissionCard(Long behaviourId, String title, int points, boolean bonus, boolean requiresPhoto, String status, boolean forMe) {}
 
     @Transactional(readOnly = true)
     public List<MissionCard> cardsFor(Kid kid, LocalDate date) {
         var done = completions.findByKidIdAndMissionDate(kid.getId(), date);
         return behaviours.findByHouseholdIdAndActiveTrue(kid.getHouseholdId()).stream()
-                .filter(b -> b.visibleOn(date))
+                .filter(b -> b.visibleOn(date) && b.isFor(kid.getId()))
                 .map(b -> {
                     var c = done.stream().filter(x -> x.getBehaviourId().equals(b.getId())).findFirst();
                     var status = c.map(x -> x.getStatus() == MissionCompletion.Status.SENT_BACK ? "TODO" : x.getStatus().name()).orElse("TODO");
-                    return new MissionCard(b.getId(), b.getTitle(), b.getPoints(), b.getKind() == Behaviour.Kind.BONUS, b.isRequiresPhoto(), status);
+                    return new MissionCard(b.getId(), b.getTitle(), b.getPoints(), b.getKind() == Behaviour.Kind.BONUS, b.isRequiresPhoto(), status, b.getKidId() != null);
                 }).toList();
     }
 
     /** Presigned upload ticket. Key is deterministic per kid/behaviour/day so a retry overwrites rather than orphans. */
+    @Transactional(readOnly = true)
     public PhotoStorage.UploadTicket photoTicket(Kid kid, Long behaviourId, LocalDate date) {
+        available(kid, behaviourId, date);
         var key = "missions/" + kid.getId() + "/" + date + "/" + behaviourId + ".jpg";
         return photos.presignUpload(key, "image/jpeg", java.time.Duration.ofMinutes(10));
     }
 
     @Transactional
     public MissionCompletion submit(Kid kid, Long behaviourId, LocalDate date, String photoKey) {
-        var b = behaviours.findById(behaviourId).orElseThrow(() -> DomainException.notFound("behaviour"));
-        if (!b.getHouseholdId().equals(kid.getHouseholdId()) || !b.visibleOn(date)) throw DomainException.badRequest("mission not available today");
+        var b = available(kid, behaviourId, date);
         if (b.isRequiresPhoto() && (photoKey == null || photoKey.isBlank())) throw DomainException.badRequest("photo required");
         var existing = completions.findByKidIdAndBehaviourIdAndMissionDate(kid.getId(), behaviourId, date);
         MissionCompletion c;
@@ -104,6 +106,14 @@ public class MissionService {
         c.setPhotoKey(null);
         var kid = kids.findById(c.getKidId()).orElseThrow();
         events.publishEvent(PushRequested.kid(kid.getId(), "HQ wants another look", note != null && !note.isBlank() ? note : "Have another go at " + behaviours.findById(c.getBehaviourId()).map(Behaviour::getTitle).orElse("that mission"), "/hq"));
+    }
+
+    /** The mission as this kid may do it today: same household, live on that date, and for everyone or for them. */
+    private Behaviour available(Kid kid, Long behaviourId, LocalDate date) {
+        var b = behaviours.findById(behaviourId).orElseThrow(() -> DomainException.notFound("behaviour"));
+        if (!b.getHouseholdId().equals(kid.getHouseholdId()) || !b.visibleOn(date) || !b.isFor(kid.getId()))
+            throw DomainException.badRequest("mission not available today");
+        return b;
     }
 
     /** A completion in another household reads as not found so ids never leak across families. */

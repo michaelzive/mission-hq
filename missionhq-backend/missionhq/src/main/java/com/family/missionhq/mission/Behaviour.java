@@ -11,6 +11,8 @@ public class Behaviour {
     public enum Kind { DAILY, WEEKLY, BONUS }
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     private Long householdId;
+    /** Null = every kid in the household; otherwise only this kid sees and can submit it. */
+    private Long kidId;
     private String title;
     private int points;
     @Enumerated(EnumType.STRING) private Kind kind = Kind.DAILY;
@@ -20,5 +22,9 @@ public class Behaviour {
 
     public boolean visibleOn(LocalDate date) {
         return active && (kind != Kind.BONUS || date.equals(bonusDate));
+    }
+
+    public boolean isFor(Long kidId) {
+        return this.kidId == null || this.kidId.equals(kidId);
     }
 }

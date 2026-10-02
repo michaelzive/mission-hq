@@ -10,7 +10,8 @@ export interface MeView {
   id: number; callsign: string; themeCode: ThemeCode; balance: number; lifetimeEarned: number; streakDays: number;
   rank: RankView; termGoal: TermGoal | null; pointsPerCurrencyUnit: number; avatar: AvatarView;
 }
-export interface MissionCard { behaviourId: number; title: string; points: number; bonus: boolean; requiresPhoto: boolean; status: MissionStatus; }
+/** forMe: directed at this kid alone rather than everyone in the household. */
+export interface MissionCard { behaviourId: number; title: string; points: number; bonus: boolean; requiresPhoto: boolean; status: MissionStatus; forMe: boolean; }
 export interface Celebration { id: number; kidId: number; type: CelebrationType; points: number | null; refId: number | null; payload: string | null; }
 export interface PairResponse { deviceToken: string; kidId: number; callsign: string; themeCode: ThemeCode; }
 export interface SubmitResponse { completionId: number; status: string; }
@@ -26,8 +27,10 @@ export interface KidSummary { id: number; callsign: string; themeCode: ThemeCode
 export interface KidInput { callsign: string; themeCode: ThemeCode; }
 export const THEME_CODES: ThemeCode[] = ['AIRSOFT', 'HERO'];
 export type BehaviourKind = 'DAILY' | 'WEEKLY' | 'BONUS';
-export interface Behaviour { id: number; title: string; points: number; kind: BehaviourKind; requiresPhoto: boolean; bonusDate: string | null; active: boolean; }
-export type BehaviourInput = Omit<Behaviour, 'id'>;
+/** kidId/callsign are null for a mission every kid sees. */
+export interface Behaviour { id: number; kidId: number | null; callsign: string | null; title: string; points: number; kind: BehaviourKind; requiresPhoto: boolean; bonusDate: string | null; active: boolean; }
+/** kidId null = every kid in the household. */
+export type BehaviourInput = Omit<Behaviour, 'id' | 'callsign'>;
 export const REWARD_CATEGORIES: RewardCategory[] = ['GEAR', 'GAME_TIME', 'OUTING', 'TREAT', 'OTHER'];
 /** kidId/callsign are null for a reward in everyone's shop. */
 export interface RewardAdmin { id: number; kidId: number | null; callsign: string | null; name: string; category: RewardCategory; price: number | null; tier: number | null; status: RewardStatus; suggestedByKid: boolean; termGoal: boolean; repeatable: boolean; }

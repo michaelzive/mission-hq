@@ -33,6 +33,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 /** A parent in one household can neither see nor act on another household's kids. Requires Docker. */
 @SpringBootTest @Testcontainers @ActiveProfiles("dev")
@@ -80,15 +81,41 @@ class TenancyIT {
         var stranger = strangerParent();
         var home = parents.findByEmail("dad@example.com").orElseThrow();
         var input = new BehaviourService.Input(" Feed the dog ", 10, Behaviour.Kind.DAILY, false, null, true);
-        var b = behaviourService.create(stranger, input);
+        var b = behaviourService.create(stranger, null, input);
 
         assertThat(b.getTitle()).isEqualTo("Feed the dog");
         assertThat(behaviourService.forHousehold(stranger)).extracting(Behaviour::getId).containsExactly(b.getId());
         assertThat(behaviourService.forHousehold(home)).extracting(Behaviour::getId).doesNotContain(b.getId());
-        assertThatThrownBy(() -> behaviourService.update(home, b.getId(), input))
+        assertThatThrownBy(() -> behaviourService.update(home, b.getId(), null, input))
                 .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
-        assertThatThrownBy(() -> behaviourService.create(stranger, new BehaviourService.Input("Test", 30, Behaviour.Kind.BONUS, true, null, true)))
+        assertThatThrownBy(() -> behaviourService.create(stranger, null, new BehaviourService.Input("Test", 30, Behaviour.Kind.BONUS, true, null, true)))
                 .isInstanceOf(DomainException.class).hasMessageContaining("needs a date");
+    }
+
+    @Test void aDirectedMissionReachesOnlyItsKidAndReassignsWithoutStrandingAReport() {
+        var stranger = strangerParent();
+        var alpha = kidService.create(stranger.getHouseholdId(), "Alpha", "AIRSOFT");
+        var bravo = kidService.create(stranger.getHouseholdId(), "Bravo", "HERO");
+        var today = LocalDate.now();
+        var everyone = behaviourService.create(stranger, null, new BehaviourService.Input("Homework", 10, Behaviour.Kind.DAILY, false, null, true));
+        var piano = behaviourService.create(stranger, alpha, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true));
+
+        assertThat(missions.cardsFor(alpha, today)).extracting(MissionService.MissionCard::behaviourId, MissionService.MissionCard::forMe)
+                .containsExactlyInAnyOrder(tuple(everyone.getId(), false), tuple(piano.getId(), true));
+        assertThat(missions.cardsFor(bravo, today)).extracting(MissionService.MissionCard::behaviourId).containsExactly(everyone.getId());
+        assertThatThrownBy(() -> missions.photoTicket(bravo, piano.getId(), today))
+                .isInstanceOf(DomainException.class).hasMessageContaining("not available");
+        assertThatThrownBy(() -> missions.submit(bravo, piano.getId(), today, null))
+                .isInstanceOf(DomainException.class).hasMessageContaining("not available");
+        assertThatThrownBy(() -> behaviourService.create(stranger, kids.findById(1L).orElseThrow(), new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true)))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
+
+        var report = missions.submit(alpha, piano.getId(), today, null);
+        behaviourService.update(stranger, piano.getId(), bravo, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true));
+        assertThat(missions.cardsFor(alpha, today)).extracting(MissionService.MissionCard::behaviourId).doesNotContain(piano.getId());
+        assertThat(missions.cardsFor(bravo, today)).extracting(MissionService.MissionCard::behaviourId).contains(piano.getId());
+        missions.approve(report.getId(), stranger, 0);
+        assertThat(kids.findById(alpha.getId()).orElseThrow().getBalance()).isEqualTo(15);
     }
 
     @Test void rewardsAreScopedAndOnlyOneTermGoalPerKid() {
