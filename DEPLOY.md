@@ -117,7 +117,13 @@ Merge to `main` for prod once dev works end to end.
 
 ## 6. Cloudflare Pages (two projects per repo)
 
-Workers & Pages → Create → Pages → connect the GitHub repo. Do this twice:
+Workers & Pages → Create → **Pages** → connect the GitHub repo. Do this twice:
+
+Make sure you are on the Pages tab. Connecting the repo from the Workers side ("Import a repository") creates a
+**Worker** named after the repo (`mission-hq`) instead. Its build runs `npx wrangler versions upload` and fails on every
+push with `Missing entry-point to Worker script or to assets directory`, because this repo has no Worker. If one shows
+up, check its Settings → Domains & Routes is empty and delete it. Workers & Pages should list exactly
+`missionhq-kid` and `missionhq-parent`.
 
 | Setting | Kid app | Parent app |
 |---|---|---|
@@ -163,9 +169,23 @@ Push only arrives in the **installed** app (production build, HTTPS) — not in 
    device token is stored on the tablet; the code is single-use.
 3. Parent phone: open the parent app, "Add to home screen", turn on alerts from the header.
 
-Kids and behaviours are still inserted directly in the database for now (no admin screens yet).
+Kids, missions (for everyone or directed at one kid) and rewards are all managed from the parent app.
 
 ## Operating it
+
+**Releasing to prod** — test on dev first, then fast-forward `main` to `develop` so history stays linear:
+`git push origin develop:main` (it refuses if `main` has commits `develop` lacks). That push runs CI, CodeQL and
+"Deploy backend" (only if `missionhq-backend/**` changed) on GitHub, and the Pages production builds on Cloudflare.
+To confirm a new migration ran, read the startup log:
+```bash
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="missionhq-prod" AND textPayload:"Successfully applied"' --freshness=1h --limit=3 --format="value(timestamp,textPayload)"
+```
+
+**Installed apps update themselves.** Each app's `UpdateService` checks for a new version on launch and hourly, then
+activates it and reloads once the screen is idle. Nobody reinstalls; closing and reopening the app picks it up sooner.
+The flip side: for up to an hour, devices still run the *previous* app against the *new* backend. Keep API changes
+additive (new optional fields; Spring ignores fields it doesn't know, and old apps ignore new ones). Don't rename or
+remove a field until a release after the last app that used it has gone.
 
 **Rollback** — Cloud Run keeps every revision. Cloud Run → service → Revisions → "Manage traffic" → 100% to the previous
 revision, or `gcloud run services update-traffic missionhq-prod --to-revisions=<revision>=100`. Pages: Deployments →
@@ -173,7 +193,11 @@ revision, or `gcloud run services update-traffic missionhq-prod --to-revisions=<
 
 **Migrations are forward-only.** `spring.jpa.hibernate.ddl-auto=validate` means a rolled-back image will refuse to start
 if the schema no longer matches its entities. Write migrations expand/contract: add columns/tables in one release, drop
-old ones only after the previous release is gone. Never edit an applied migration; Flyway checksums it.
+old ones only after the previous release is gone. Never edit an applied migration, `db/seed` included; Flyway checksums
+it. If you do, startup fails with what looks like a bean error (`Error creating bean with name 'deviceTokenFilter'` …
+`entityManagerFactory`). The real cause is in the last `Caused by`: `Migration checksum mismatch for migration version N`.
+On dev/prod, revert the edit and put the change in a new migration. Avoid `flyway repair` if the file's content really
+changed: it only accepts the new checksum and leaves the database as the old version made it.
 
 **Secrets rotation** — change the value in the GitHub environment and re-run the "Deploy backend" workflow
 (`workflow_dispatch`); Cloud Run picks up env vars per revision.
@@ -184,3 +208,15 @@ old ones only after the previous release is gone. Never edit an applied migratio
 
 `docker compose up -d` + the IntelliJ `backend` run config (or `SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run`) and
 `npm start` / `npm run start:parent`. Local uses `STORAGE_TYPE=local` and no CORS config; nothing here applies.
+
+- **Parent sign-in:** `dad@example.com` / `change-me` (the dev seed parent; `ParentBootstrap` sets the password on startup).
+  The login page says "Could not reach the HQ server" when the backend is down and "Wrong email or password" only on a
+  real 401. On a deployed app, the unreachable message means the backend is down, `API_BASE_URL` is wrong, or
+  `CORS_ORIGINS` doesn't list the page's origin.
+- **Kid tablets:** pair from the parent app's Kids → New pairing code. The pairing lives in the browser, so use a
+  private window to be a second kid at the same time.
+- **Checksum mismatch on startup:** the local database was built from an older copy of a migration or seed file.
+  Local data is only the demo seed, so rebuild it: `docker compose down -v && docker compose up -d`, then start the
+  backend, which reapplies everything.
+- **Port 8080 already in use:** stopping `spring-boot:run` can leave its Java process behind. On Windows,
+  `Get-NetTCPConnection -LocalPort 8080 | Select OwningProcess`, then stop that process.
