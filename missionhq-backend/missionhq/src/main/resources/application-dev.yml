@@ -1,5 +1,7 @@
 # Development profile: local runs and the deployed dev environment.
-# Activate with SPRING_PROFILES_ACTIVE=dev (the IntelliJ `backend` run config sets it).
+# Activate with SPRING_PROFILES_ACTIVE=dev. Local runs use dev,local (the IntelliJ `backend` run config sets it): the
+# local profile loads config/application-local.yml from the working directory, a gitignored file for personal settings
+# such as missionhq.parent.email.
 # Adds the demo household, kids, missions, rewards and paired devices from db/seed on top of the schema migrations.
 spring:
   flyway:
@@ -7,5 +9,6 @@ spring:
     placeholders:
       demo_parent_email: ${missionhq.parent.email}   # V9 seed hands the demo household to this parent
 missionhq:
+  admin-emails: ${ADMIN_EMAILS:${missionhq.parent.email}}   # locally the demo parent may invite families
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:missionhq-dev}   # the dev Firebase project; local runs sign in against it too

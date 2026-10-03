@@ -93,6 +93,7 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: your own Gmail. The dev seed (`db/seed/V9`) hands the demo household to it, so signing in with Google lands among the demo kids. Set it **before** the first deploy that applies V9: that seed runs once, and a later change makes `ParentBootstrap` create a new empty household instead |
 | secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup. Backs the household-password sign-in kept during the move to Firebase |
 | var | `FIREBASE_PROJECT_ID` | the Firebase project ID from step 6a (`missionhq-dev` on dev, `missionhq-prod` on prod). Empty = Firebase sign-in off, household password only |
+| var | `ADMIN_EMAILS` | parents who may invite a new family (Kids → Parents → Invite a family), **space**-separated like `CORS_ORIGINS`. Empty = nobody. Locally the dev profile defaults it to `PARENT_EMAIL` |
 | var | `CORS_ORIGINS` | **space**-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases). Not commas — the deploy action uses commas to separate env vars and silently drops everything after the first |
 | secret | `STORAGE_SECRET` | any long random string (signs photo URLs); `openssl rand -hex 32` |
 | var | `S3_ENDPOINT` / `S3_BUCKET` | from step 2 |
@@ -230,10 +231,15 @@ changed: it only accepts the new checksum and leaves the database as the old ver
 `docker compose up -d` + the IntelliJ `backend` run config (or `SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run`) and
 `npm start` / `npm run start:parent`. Local uses `STORAGE_TYPE=local` and no CORS config; nothing here applies.
 
-- **Parent sign-in:** run the backend with `PARENT_EMAIL` set to your Gmail (`$env:PARENT_EMAIL = "you@gmail.com"`)
-  and sign in with Google; local runs use the `missionhq-dev` Firebase project. The dev seed hands the demo household to
-  that address once per database, so keep setting it: without it, startup creates an empty household for
-  `dad@example.com`. The household password (`PARENT_EMAIL` / `change-me`) still works during the transition.
+- **Your email, once:** create `missionhq-backend/missionhq/config/application-local.yml` (gitignored) with
+  `missionhq: { parent: { email: you@gmail.com } }`. The IntelliJ `backend` run config uses profiles `dev,local`, and
+  the `local` profile loads that file; from a terminal, set `SPRING_PROFILES_ACTIVE=dev,local` the same way. Without it,
+  every start creates an empty household for `dad@example.com`, and nobody is a local admin.
+- **Parent sign-in:** Google as that email; local runs use the `missionhq-dev` Firebase project. The dev seed hands the
+  demo household to that address once per database, and the dev profile makes it an admin (Invite a family). The
+  household password (your email / `change-me`) still works during the transition.
+- **"http proxy error … ECONNREFUSED" in the parent dev server:** the backend isn't listening yet. The `stack` run config
+  starts all three apps at once and Spring takes a few seconds; reload once you see `Started MissionHqApplication`.
   The login page says "Could not reach the HQ server" when the backend is down and "Wrong email or password" only on a
   real 401. On a deployed app, the unreachable message means the backend is down, `API_BASE_URL` is wrong, or
   `CORS_ORIGINS` doesn't list the page's origin.

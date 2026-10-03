@@ -2,7 +2,7 @@
   <configuration default="false" name="backend" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
     <module name="missionhq" />
     <envs>
-      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+      <env name="SPRING_PROFILES_ACTIVE" value="dev,local" />
     </envs>
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.family.missionhq.MissionHqApplication" />
     <option name="WORKING_DIRECTORY" value="$MODULE_DIR$" />

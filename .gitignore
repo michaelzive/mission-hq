@@ -23,6 +23,8 @@ Thumbs.db
 # --- Local env ---
 .env
 .env.local
+# Personal backend settings loaded by the "local" Spring profile (e.g. missionhq.parent.email); see DEPLOY.md
+missionhq-backend/missionhq/config/application-local.yml
 
 # --- Local photo storage (missionhq.storage.local.dir; uploaded user content, 30-day TTL) ---
 data/
