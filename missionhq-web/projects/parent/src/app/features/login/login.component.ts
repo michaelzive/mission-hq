@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { InviteStatus, ParentApi } from 'shared';
+import { InviteKind, InviteStatus, ParentApi } from 'shared';
 import { AuthService } from '../../core/auth.service';
 
 type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'join' | 'already' | 'household';
@@ -29,7 +29,8 @@ const INVITE_GONE: Record<Exclude<InviteStatus, 'OPEN'>, string> = {
     <div class="login">
       <h1>Mission HQ</h1>
       @if (invitedBy() && (step() === 'signin' || step() === 'create')) {
-        <p class="banner"><b>{{ invitedBy() }}</b> invited you to join their family on Mission HQ. Sign in, or create an account, to accept.</p>
+        <p class="banner"><b>{{ invitedBy() }}</b> invited you to {{ inviteKind() === 'FAMILY' ? 'start your own family' : 'join their family' }} on Mission HQ.
+          Sign in, or create an account, to accept.</p>
       }
       @switch (step()) {
         @case ('signin') {
@@ -79,11 +80,16 @@ const INVITE_GONE: Record<Exclude<InviteStatus, 'OPEN'>, string> = {
           <button class="btn ghost" (click)="signOut()">Sign out</button>
         }
         @case ('join') {
-          <p><b>{{ invitedBy() }}</b> invited you to join their family.</p>
-          <p class="muted center">Signed in as {{ shownEmail() }}. What should the family call you?</p>
+          @if (inviteKind() === 'FAMILY') {
+            <p><b>{{ invitedBy() }}</b> invited you to start your family on Mission HQ.</p>
+            <p class="muted center">Signed in as {{ shownEmail() }}. You'll add your kids next. What should they call you?</p>
+          } @else {
+            <p><b>{{ invitedBy() }}</b> invited you to join their family.</p>
+            <p class="muted center">Signed in as {{ shownEmail() }}. What should the family call you?</p>
+          }
           <input placeholder="Your name, e.g. Mum" maxlength="60" [(ngModel)]="name" (keyup.enter)="join()" />
           <ng-container *ngTemplateOutlet="feedback" />
-          <button class="btn" [disabled]="!name.trim() || busy()" (click)="join()">{{ busy() ? 'Joining…' : 'Join the family' }}</button>
+          <button class="btn" [disabled]="!name.trim() || busy()" (click)="join()">{{ busy() ? 'Joining…' : inviteKind() === 'FAMILY' ? 'Start our family' : 'Join the family' }}</button>
           <button class="link" (click)="signOut()">Use a different account</button>
         }
         @case ('already') {
@@ -128,6 +134,7 @@ export class LoginComponent implements OnInit {
   email = ''; password = ''; name = '';
   /** Who sent the pending invite, once the backend confirmed it's still open. */
   readonly invitedBy = signal<string | null>(null);
+  readonly inviteKind = signal<InviteKind>('PARENT');
   readonly step = signal<Step>(this.auth.firebaseEnabled ? 'signin' : 'household');
   readonly shownEmail = signal('');
   readonly busy = signal(false);
@@ -147,7 +154,7 @@ export class LoginComponent implements OnInit {
     return this.run(async () => {
       await this.auth.acceptInvite(read(INVITE_KEY)!, this.name.trim());
       store(INVITE_KEY, null);
-      await this.router.navigate(['/approvals']);
+      await this.router.navigate([this.inviteKind() === 'FAMILY' ? '/kids' : '/approvals']);
     });
   }
 
@@ -207,7 +214,7 @@ export class LoginComponent implements OnInit {
     if (!token) return null;
     try {
       const p = await this.api.invitePreview(token);
-      if (p.status === 'OPEN') { this.invitedBy.set(p.invitedBy); return null; }
+      if (p.status === 'OPEN') { this.invitedBy.set(p.invitedBy); this.inviteKind.set(p.kind); return null; }
       store(INVITE_KEY, null);
       return INVITE_GONE[p.status];
     } catch (e) {

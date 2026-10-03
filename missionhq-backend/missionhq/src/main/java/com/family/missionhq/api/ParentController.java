@@ -61,6 +61,16 @@ public class ParentController {
     @DeleteMapping("/invites/{id}")
     public void cancel(@PathVariable Long id) { members.cancel(current.get(), id); }
 
+    /** Admins only: invites for someone to start their own family. Cancelled through DELETE /invites/{id}. */
+    @GetMapping("/family-invites")
+    public List<InviteView> familyInvites() { return members.openFamilyInvites(current.get()).stream().map(this::view).toList(); }
+
+    @PostMapping("/family-invites")
+    public CreatedInviteView inviteFamily() {
+        var created = members.inviteFamily(current.get());
+        return new CreatedInviteView(created.invite().getId(), created.token(), created.invite().getExpiresAt());
+    }
+
     /** Public: the token is the secret. Lets the join screen say who sent the invite before anyone signs in. */
     @GetMapping("/invites/preview")
     public HouseholdMembers.InvitePreview preview(@RequestParam String token) { return members.preview(token); }
@@ -70,7 +80,7 @@ public class ParentController {
         if (auth.getPrincipal() instanceof ParentPrincipal) throw DomainException.conflict("this account is already part of a family on Mission HQ");
         var v = (FirebaseParents.SignedInVisitor) auth.getPrincipal();
         var p = members.accept(body.token(), v.uid(), v.email(), v.emailVerified(), body.name());
-        return new AuthController.Me(true, p.getEmail(), true);
+        return new AuthController.Me(true, p.getEmail(), true, members.isAdmin(p));
     }
 
     private InviteView view(ParentInvite i) {

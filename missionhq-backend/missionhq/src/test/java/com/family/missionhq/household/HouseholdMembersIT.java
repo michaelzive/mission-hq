@@ -18,8 +18,8 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Invites into a household and removing parents from one. Requires Docker. */
-@SpringBootTest @Testcontainers @ActiveProfiles("dev")
+/** Invites into a household, family invites from admins, and removing parents. Requires Docker. */
+@SpringBootTest(properties = "missionhq.admin-emails=boss@example.com other-admin@example.com") @Testcontainers @ActiveProfiles("dev")
 class HouseholdMembersIT {
     @Container @ServiceConnection
     static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16-alpine");
@@ -36,7 +36,7 @@ class HouseholdMembersIT {
 
         assertThat(created.invite().getExpiresAt()).isAfter(Instant.now().plus(HouseholdMembers.INVITE_LIFETIME).minusSeconds(60));
         assertThat(created.invite().getTokenHash()).isNotEqualTo(created.token()).hasSize(64);
-        assertThat(members.preview(created.token())).isEqualTo(new HouseholdMembers.InvitePreview("Mike", HouseholdMembers.InviteStatus.OPEN));
+        assertThat(members.preview(created.token())).isEqualTo(new HouseholdMembers.InvitePreview("Mike", HouseholdMembers.InviteStatus.OPEN, ParentInvite.Kind.PARENT));
         assertThat(members.openInvites(mike)).extracting(ParentInvite::getId).containsExactly(created.invite().getId());
 
         var sam = members.accept(created.token(), "uid-sam", "sam@example.com", true, "  Sam ");
@@ -104,6 +104,44 @@ class HouseholdMembersIT {
         var back = members.accept(members.invite(mike).token(), "uid-sam4", "sam4@example.com", true, "Sam");
         assertThat(back.getId()).isNotEqualTo(sam.getId());
         assertThat(members.parentsOf(mike)).extracting(Parent::getName).containsExactly("Mike", "Sam");
+    }
+
+    @Test void onlyAdminsInviteFamiliesAndAcceptingOneStartsANewHousehold() {
+        var mike = parent("Mike", "mike5@example.com");
+        assertThatThrownBy(() -> members.inviteFamily(mike))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.FORBIDDEN);
+        assertThatThrownBy(() -> members.openFamilyInvites(mike))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.FORBIDDEN);
+
+        var boss = parent("Boss", "Boss@Example.com");
+        var created = members.inviteFamily(boss);
+        assertThat(created.invite().getHouseholdId()).isNull();
+        assertThat(members.preview(created.token())).isEqualTo(new HouseholdMembers.InvitePreview("Boss", HouseholdMembers.InviteStatus.OPEN, ParentInvite.Kind.FAMILY));
+        assertThat(members.openFamilyInvites(boss)).extracting(ParentInvite::getId).containsExactly(created.invite().getId());
+        assertThat(members.openInvites(boss)).isEmpty();
+
+        var jo = members.accept(created.token(), "uid-jo", "jo@example.com", true, "Jo");
+        assertThat(jo.getHouseholdId()).isNotEqualTo(boss.getHouseholdId());
+        assertThat(households.findById(jo.getHouseholdId()).orElseThrow().getName()).isEqualTo("Jo's family");
+        assertThat(members.parentsOf(jo)).extracting(Parent::getName).containsExactly("Jo");
+        assertThat(members.parentsOf(boss)).extracting(Parent::getName).containsExactly("Boss");
+        assertThat(members.isAdmin(jo)).isFalse();
+        assertThat(members.openFamilyInvites(boss)).isEmpty();
+
+        // Jo's household can grow the normal way
+        var sam = members.accept(members.invite(jo).token(), "uid-sam6", "sam6@example.com", true, "Sam");
+        assertThat(sam.getHouseholdId()).isEqualTo(jo.getHouseholdId());
+    }
+
+    @Test void aFamilyInviteCanOnlyBeCancelledByTheAdminWhoMadeIt() {
+        var boss = parent("Boss", "other-admin@example.com");
+        var neighbour = parent("Neighbour", "neighbour7@example.com");
+        var created = members.inviteFamily(boss);
+
+        assertThatThrownBy(() -> members.cancel(neighbour, created.invite().getId()))
+                .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
+        members.cancel(boss, created.invite().getId());
+        assertThat(members.preview(created.token()).status()).isEqualTo(HouseholdMembers.InviteStatus.CANCELLED);
     }
 
     private Parent parent(String name, String email) {

@@ -1,16 +1,18 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ParentApi, ParentInviteView, ParentMember } from 'shared';
+import { AuthService } from '../../core/auth.service';
 
 /**
  * The household's parents and how more join: an invite link that works once and expires in a week, which the parent sends
  * themselves (share sheet or copy). Only the link's hash is stored, so an invite can't be shown again: lost links get
- * cancelled and replaced. Any parent can remove another; nobody can remove themselves.
+ * cancelled and replaced. Any parent can remove another; nobody can remove themselves. Admins also get family invites,
+ * which let someone start their own household.
  */
 @Component({
   selector: 'parent-parents',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, NgTemplateOutlet],
   template: `
     <h2>Parents</h2>
     @if (error(); as e) { <p class="error">{{ e }}</p> }
@@ -39,26 +41,48 @@ import { ParentApi, ParentInviteView, ParentMember } from 'shared';
       <p class="muted">Makes a link that works once and expires in 7 days. Send it yourself, for example on WhatsApp.
         They sign in with Google or an email address and join this family.</p>
       @if (link(); as l) {
-        <input class="link-box" readonly [value]="l" (focus)="$any($event.target).select()" />
-        <div class="row">
-          @if (canShare) { <button class="btn small go" (click)="share(l)">Share link</button> }
-          <button class="btn small" [class.go]="!canShare" (click)="copy(l)">Copy link</button>
-          <button class="btn small ghost" (click)="link.set(null)">Done</button>
-        </div>
+        <ng-container *ngTemplateOutlet="linkBox; context: { $implicit: l, done: clearLink }" />
       } @else {
         <div class="row"><button class="btn small go" [disabled]="busy()" (click)="create()">Create invite link</button></div>
       }
-      @if (invites().length) {
+      <ng-container *ngTemplateOutlet="pending; context: { $implicit: invites() }" />
+    </article>
+
+    @if (admin()) {
+      <article class="card">
+        <b>Invite a family</b>
+        <p class="muted">Only admins see this. Makes a link that works once and expires in 7 days; whoever opens it starts
+          their own family on Mission HQ, with their own kids, missions and rewards. Nothing in your family is shared with them.</p>
+        @if (familyLink(); as l) {
+          <ng-container *ngTemplateOutlet="linkBox; context: { $implicit: l, done: clearFamilyLink }" />
+        } @else {
+          <div class="row"><button class="btn small go" [disabled]="busy()" (click)="createFamily()">Create family invite link</button></div>
+        }
+        <ng-container *ngTemplateOutlet="pending; context: { $implicit: familyInvites() }" />
+      </article>
+    }
+    @if (toast(); as t) { <div class="toast">{{ t }}</div> }
+
+    <ng-template #linkBox let-l let-done="done">
+      <input class="link-box" readonly [value]="l" (focus)="$any($event.target).select()" />
+      <div class="row">
+        @if (canShare) { <button class="btn small go" (click)="share(l)">Share link</button> }
+        <button class="btn small" [class.go]="!canShare" (click)="copy(l)">Copy link</button>
+        <button class="btn small ghost" (click)="done()">Done</button>
+      </div>
+    </ng-template>
+
+    <ng-template #pending let-list>
+      @if (list.length) {
         <div class="muted pending">Waiting to be used (lost a link? cancel it and make a new one):</div>
-        @for (i of invites(); track i.id) {
+        @for (i of list; track i.id) {
           <div class="row">
             <span class="who muted">From {{ i.invitedBy }} · expires {{ i.expiresAt | date:'EEE d MMM' }}</span>
             <button class="link" (click)="cancel(i)">Cancel</button>
           </div>
         }
       }
-    </article>
-    @if (toast(); as t) { <div class="toast">{{ t }}</div> }
+    </ng-template>
   `,
   styles: `
     h2 { font-size: 17px; font-weight: 800; margin: 22px 0 8px; }
@@ -75,10 +99,16 @@ import { ParentApi, ParentInviteView, ParentMember } from 'shared';
 })
 export class ParentsComponent implements OnInit {
   private readonly api = inject(ParentApi);
+  private readonly auth = inject(AuthService);
   readonly canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   readonly parents = signal<ParentMember[]>([]);
   readonly invites = signal<ParentInviteView[]>([]);
   readonly link = signal<string | null>(null);
+  readonly admin = signal(false);
+  readonly familyInvites = signal<ParentInviteView[]>([]);
+  readonly familyLink = signal<string | null>(null);
+  readonly clearLink = () => this.link.set(null);
+  readonly clearFamilyLink = () => this.familyLink.set(null);
   readonly renaming = signal(false);
   readonly removing = signal<number | null>(null);
   readonly busy = signal(false);
@@ -90,8 +120,9 @@ export class ParentsComponent implements OnInit {
 
   async refresh() {
     try {
-      const [parents, invites] = await Promise.all([this.api.parents(), this.api.invites()]);
-      this.parents.set(parents); this.invites.set(invites);
+      const [parents, invites, me] = await Promise.all([this.api.parents(), this.api.invites(), this.auth.whoAmI()]);
+      this.parents.set(parents); this.invites.set(invites); this.admin.set(me.admin);
+      if (me.admin) this.familyInvites.set(await this.api.familyInvites());
     } catch { this.error.set('Could not load the parents.'); }
   }
 
@@ -111,13 +142,23 @@ export class ParentsComponent implements OnInit {
   create() {
     return this.run(async () => {
       const i = await this.api.createInvite();
-      this.link.set(`${location.origin}/login?invite=${encodeURIComponent(i.token)}`);
+      this.link.set(this.inviteUrl(i.token));
       await this.refresh();
     }, 'Could not create an invite.');
   }
 
+  createFamily() {
+    return this.run(async () => {
+      const i = await this.api.createFamilyInvite();
+      this.familyLink.set(this.inviteUrl(i.token));
+      await this.refresh();
+    }, 'Could not create a family invite.');
+  }
+
   cancel(i: ParentInviteView) {
-    return this.run(async () => { await this.api.cancelInvite(i.id); this.link.set(null); await this.refresh(); }, 'Could not cancel that invite.');
+    return this.run(async () => {
+      await this.api.cancelInvite(i.id); this.link.set(null); this.familyLink.set(null); await this.refresh();
+    }, 'Could not cancel that invite.');
   }
 
   async share(url: string) {
@@ -129,6 +170,8 @@ export class ParentsComponent implements OnInit {
     try { await navigator.clipboard.writeText(url); this.showToast('Link copied'); }
     catch { this.showToast('Select the link and copy it'); }
   }
+
+  private inviteUrl(token: string) { return `${location.origin}/login?invite=${encodeURIComponent(token)}`; }
 
   private async run(action: () => Promise<unknown>, fallback: string) {
     this.busy.set(true); this.error.set(null);

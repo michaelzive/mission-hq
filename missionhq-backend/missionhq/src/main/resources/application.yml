@@ -20,6 +20,7 @@ missionhq:
     allowed-origins: ${CORS_ORIGINS:}   # space-separated (commas get split by the Cloud Run deploy action), e.g. https://hq.pages.dev https://hq-parent.pages.dev
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:}  # Firebase project whose ID tokens parents sign in with; blank = Firebase sign-in off
+  admin-emails: ${ADMIN_EMAILS:}        # parents allowed to invite a new family (space or comma separated)
   parent:                                # first parent account; ParentBootstrap creates it (and its household) on a blank DB
     email: ${PARENT_EMAIL:dad@example.com}
     password: ${PARENT_PASSWORD:change-me}

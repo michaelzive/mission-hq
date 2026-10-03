@@ -20,6 +20,7 @@ import java.util.List;
  * Who belongs to a household. Parents invite each other with single-use links that expire after a week; whoever opens the
  * link signs in to Firebase and becomes a parent there. All parents are equal: any parent can invite, cancel invites and
  * remove another parent, never themselves, so a household always keeps at least one. One household per account.
+ * Admins can also invite a whole new family: that link has no household, and accepting it creates one.
  */
 @Service @RequiredArgsConstructor @Slf4j
 public class HouseholdMembers {
@@ -27,10 +28,12 @@ public class HouseholdMembers {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final ParentRepository parents;
     private final ParentInviteRepository invites;
+    private final HouseholdRepository households;
+    private final Admins admins;
 
     public record CreatedInvite(ParentInvite invite, String token) {}
     public enum InviteStatus { OPEN, EXPIRED, USED, CANCELLED }
-    public record InvitePreview(String invitedBy, InviteStatus status) {}
+    public record InvitePreview(String invitedBy, InviteStatus status, ParentInvite.Kind kind) {}
 
     @Transactional(readOnly = true)
     public List<Parent> parentsOf(Parent me) { return parents.findByHouseholdIdAndRemovedAtIsNullOrderByIdAsc(me.getHouseholdId()); }
@@ -41,30 +44,36 @@ public class HouseholdMembers {
         return parents.save(me);
     }
 
-    /** The token goes back to the caller once, to put in the link; only its hash is kept. */
+    /** An invite into the caller's household. The token goes back once, to put in the link; only its hash is kept. */
     @Transactional
-    public CreatedInvite invite(Parent me) {
-        var bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        var token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        var now = Instant.now();
-        var i = new ParentInvite();
-        i.setHouseholdId(me.getHouseholdId());
-        i.setTokenHash(hash(token));
-        i.setCreatedBy(me.getId());
-        i.setCreatedAt(now);
-        i.setExpiresAt(now.plus(INVITE_LIFETIME));
-        return new CreatedInvite(invites.save(i), token);
+    public CreatedInvite invite(Parent me) { return newInvite(me, ParentInvite.Kind.PARENT, me.getHouseholdId()); }
+
+    /** Admins only: an invite for someone to start their own family. */
+    @Transactional
+    public CreatedInvite inviteFamily(Parent me) {
+        requireAdmin(me);
+        return newInvite(me, ParentInvite.Kind.FAMILY, null);
     }
+
+    /** The family invites this admin has out that are still waiting to be used. */
+    @Transactional(readOnly = true)
+    public List<ParentInvite> openFamilyInvites(Parent me) {
+        requireAdmin(me);
+        return invites.findByKindAndCreatedByAndAcceptedAtIsNullAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtAsc(ParentInvite.Kind.FAMILY, me.getId(), Instant.now());
+    }
+
+    public boolean isAdmin(Parent p) { return admins.isAdmin(p.getEmail()); }
 
     @Transactional(readOnly = true)
     public List<ParentInvite> openInvites(Parent me) {
         return invites.findByHouseholdIdAndAcceptedAtIsNullAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtAsc(me.getHouseholdId(), Instant.now());
     }
 
+    /** A household's parents can cancel its invites; a family invite only by the admin who made it. */
     @Transactional
     public void cancel(Parent me, Long inviteId) {
-        var i = invites.findById(inviteId).filter(x -> x.getHouseholdId().equals(me.getHouseholdId()))
+        var i = invites.findById(inviteId)
+                .filter(x -> x.getKind() == ParentInvite.Kind.FAMILY ? x.getCreatedBy().equals(me.getId()) : me.getHouseholdId().equals(x.getHouseholdId()))
                 .orElseThrow(() -> DomainException.notFound("invite"));
         if (i.getAcceptedAt() != null) throw DomainException.conflict("that invite has already been used");
         if (i.getRevokedAt() == null) i.setRevokedAt(Instant.now());
@@ -75,10 +84,10 @@ public class HouseholdMembers {
     public InvitePreview preview(String token) {
         var i = invites.findByTokenHash(hash(token)).orElseThrow(() -> DomainException.notFound("invite"));
         var by = parents.findById(i.getCreatedBy()).map(Parent::getName).orElse("A parent");
-        return new InvitePreview(by, status(i, Instant.now()));
+        return new InvitePreview(by, status(i, Instant.now()), i.getKind());
     }
 
-    /** A signed-in Firebase user with no household joins the inviting household as a new parent. */
+    /** A signed-in Firebase user with no household joins the inviting household, or starts a new one from a family invite. */
     @Transactional
     public Parent accept(String token, String firebaseUid, String email, boolean emailVerified, String name) {
         if (!emailVerified) throw DomainException.forbidden("verify your email address first");
@@ -92,15 +101,22 @@ public class HouseholdMembers {
             case OPEN -> { }
         }
         if (parents.findByEmailIgnoreCase(email).isPresent()) throw DomainException.conflict("there is already a parent with this email on Mission HQ");
+        var cleanName = cleanName(name);
+        var householdId = i.getHouseholdId();
+        if (i.getKind() == ParentInvite.Kind.FAMILY) {
+            var hh = new Household();
+            hh.setName(cleanName + "'s family");
+            householdId = households.save(hh).getId();
+        }
         var p = new Parent();
-        p.setHouseholdId(i.getHouseholdId());
-        p.setName(cleanName(name));
+        p.setHouseholdId(householdId);
+        p.setName(cleanName);
         p.setEmail(email);
         p.setFirebaseUid(firebaseUid);
         parents.save(p);
         i.setAcceptedBy(p.getId());
         i.setAcceptedAt(Instant.now());
-        log.info("Parent {} joined household {} via invite {}", p.getId(), i.getHouseholdId(), i.getId());
+        log.info("Parent {} joined household {} via {} invite {}", p.getId(), householdId, i.getKind(), i.getId());
         return p;
     }
 
@@ -117,6 +133,25 @@ public class HouseholdMembers {
         p.setPushToken(null);
         p.setRemovedAt(Instant.now());
         log.info("Parent {} removed parent {} from household {}", me.getId(), p.getId(), p.getHouseholdId());
+    }
+
+    private CreatedInvite newInvite(Parent me, ParentInvite.Kind kind, Long householdId) {
+        var bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        var token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        var now = Instant.now();
+        var i = new ParentInvite();
+        i.setKind(kind);
+        i.setHouseholdId(householdId);
+        i.setTokenHash(hash(token));
+        i.setCreatedBy(me.getId());
+        i.setCreatedAt(now);
+        i.setExpiresAt(now.plus(INVITE_LIFETIME));
+        return new CreatedInvite(invites.save(i), token);
+    }
+
+    private void requireAdmin(Parent me) {
+        if (!isAdmin(me)) throw DomainException.forbidden("only admins can invite a new family");
     }
 
     private static InviteStatus status(ParentInvite i, Instant now) {

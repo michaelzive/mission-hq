@@ -15,6 +15,8 @@ export class ParentApi {
   removeParent(id: number) { return firstValueFrom(this.http.delete<void>(`/parents/${id}`)); }
   invites() { return firstValueFrom(this.http.get<ParentInviteView[]>('/invites')); }
   createInvite() { return firstValueFrom(this.http.post<CreatedInvite>('/invites', {})); }
+  familyInvites() { return firstValueFrom(this.http.get<ParentInviteView[]>('/family-invites')); }
+  createFamilyInvite() { return firstValueFrom(this.http.post<CreatedInvite>('/family-invites', {})); }
   cancelInvite(id: number) { return firstValueFrom(this.http.delete<void>(`/invites/${id}`)); }
   invitePreview(token: string) { return firstValueFrom(this.http.get<InvitePreview>('/invites/preview', { params: { token } })); }
   acceptInvite(token: string, name: string) { return firstValueFrom(this.http.post<AuthMe>('/invites/accept', { token, name })); }

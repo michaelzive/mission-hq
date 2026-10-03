@@ -14,4 +14,5 @@ public interface ParentInviteRepository extends JpaRepository<ParentInvite, Long
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ParentInvite> findForUpdateByTokenHash(String tokenHash);
     List<ParentInvite> findByHouseholdIdAndAcceptedAtIsNullAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtAsc(Long householdId, Instant now);
+    List<ParentInvite> findByKindAndCreatedByAndAcceptedAtIsNullAndRevokedAtIsNullAndExpiresAtAfterOrderByCreatedAtAsc(ParentInvite.Kind kind, Long createdBy, Instant now);
 }
