@@ -1,14 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { KidInput, KidSummary, ParentApi, THEME_CODES, ThemeCode } from 'shared';
+import { ParentsComponent } from './parents.component';
 
 const REASONS = ['HQ impressed', 'Great effort', 'Helped without being asked', 'Kind to your brother'];
 const WORLD_LABEL: Record<ThemeCode, string> = { AIRSOFT: 'Airsoft', HERO: 'Hero' };
 
-/** Per-kid view: add and edit kids, rank and balance at a glance, surprise bonuses, and tablet pairing codes. */
+/** Per-kid view: add and edit kids, rank and balance at a glance, surprise bonuses, and tablet pairing codes; the household's parents below. */
 @Component({
   selector: 'parent-kids',
-  imports: [FormsModule],
+  imports: [FormsModule, ParentsComponent],
   template: `
     <h1>Kids</h1>
     @if (error(); as e) { <p class="error">{{ e }}</p> }
@@ -55,6 +56,7 @@ const WORLD_LABEL: Record<ThemeCode, string> = { AIRSOFT: 'Airsoft', HERO: 'Hero
         </div>
       </article>
     }
+    <parent-parents />
     @if (toast(); as t) { <div class="toast">{{ t }}</div> }
   `,
   styles: `

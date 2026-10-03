@@ -9,4 +9,5 @@ public interface ParentRepository extends JpaRepository<Parent, Long> {
     Optional<Parent> findByEmailIgnoreCase(String email);
     Optional<Parent> findByFirebaseUid(String firebaseUid);
     List<Parent> findByHouseholdId(Long householdId);
+    List<Parent> findByHouseholdIdAndRemovedAtIsNullOrderByIdAsc(Long householdId);
 }

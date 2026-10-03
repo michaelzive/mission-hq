@@ -20,6 +20,12 @@ export interface UploadTicket { key: string; url: string; method: string; header
 // ---- parent side ----
 /** parent false = signed in but not in a household yet (needs an invite). */
 export interface AuthMe { parent: boolean; email: string; emailVerified: boolean; }
+export interface ParentMember { id: number; name: string; email: string | null; you: boolean; }
+export interface ParentInviteView { id: number; invitedBy: string; createdAt: string; expiresAt: string; }
+/** token is only returned at creation; the backend keeps just its hash. */
+export interface CreatedInvite { id: number; token: string; expiresAt: string; }
+export type InviteStatus = 'OPEN' | 'EXPIRED' | 'USED' | 'CANCELLED';
+export interface InvitePreview { invitedBy: string; status: InviteStatus; }
 export type RewardCategory = 'GEAR' | 'GAME_TIME' | 'OUTING' | 'TREAT' | 'OTHER';
 export interface PendingMission { completionId: number; kidId: number; callsign: string; title: string; points: number; photoKey: string | null; photoUrl: string | null; submittedAt: string; }
 export interface PendingReward { rewardId: number; kidId: number; callsign: string; name: string; category: RewardCategory; estimatedCost: number | null; suggestedPrice: number; }

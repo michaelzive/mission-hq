@@ -69,6 +69,9 @@ export class AuthService {
     this.me = null;
   }
 
+  /** Join the household that sent the invite; afterwards this account is a parent there. */
+  async acceptInvite(token: string, name: string) { this.me = await this.api.acceptInvite(token, name); }
+
   resendVerification() { const u = this.firebase().currentUser; return u ? sendEmailVerification(u) : Promise.resolve(); }
   sendPasswordReset(email: string) { return sendPasswordResetEmail(this.firebase(), email); }
 
@@ -86,6 +89,7 @@ export class AuthService {
   /** The Firebase account's own view of its email, for screens shown before the backend knows the user. */
   firebaseEmail(): string | null { return this.auth?.currentUser?.email ?? null; }
   firebaseEmailVerified(): boolean { return this.auth?.currentUser?.emailVerified ?? false; }
+  firebaseDisplayName(): string | null { return this.auth?.currentUser?.displayName ?? null; }
 
   async signOut() {
     this.basic.set(null); sessionStorage.removeItem(BASIC_KEY); this.me = null;

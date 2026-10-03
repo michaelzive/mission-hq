@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, AuthMe, Behaviour, BehaviourInput, Household, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
+import { ApprovalQueue, AuthMe, Behaviour, BehaviourInput, CreatedInvite, Household, InvitePreview, ParentInviteView, ParentMember, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -10,6 +10,14 @@ export class ParentApi {
   pushPublicKey() { return firstValueFrom(this.http.get<{ publicKey: string }>('/push/public-key')); }
   pushSubscribe(sub: PushSubscriptionJSON) { return firstValueFrom(this.http.post<void>('/push/subscribe', sub)); }
   authMe() { return firstValueFrom(this.http.get<AuthMe>('/auth/me')); }
+  parents() { return firstValueFrom(this.http.get<ParentMember[]>('/parents')); }
+  renameMe(name: string) { return firstValueFrom(this.http.put<ParentMember>('/parents/me', { name })); }
+  removeParent(id: number) { return firstValueFrom(this.http.delete<void>(`/parents/${id}`)); }
+  invites() { return firstValueFrom(this.http.get<ParentInviteView[]>('/invites')); }
+  createInvite() { return firstValueFrom(this.http.post<CreatedInvite>('/invites', {})); }
+  cancelInvite(id: number) { return firstValueFrom(this.http.delete<void>(`/invites/${id}`)); }
+  invitePreview(token: string) { return firstValueFrom(this.http.get<InvitePreview>('/invites/preview', { params: { token } })); }
+  acceptInvite(token: string, name: string) { return firstValueFrom(this.http.post<AuthMe>('/invites/accept', { token, name })); }
   household() { return firstValueFrom(this.http.get<Household>('/household')); }
   kids() { return firstValueFrom(this.http.get<KidSummary[]>('/kids')); }
   createKid(body: KidInput) { return firstValueFrom(this.http.post<KidSummary>('/kids', body)); }

@@ -2,14 +2,24 @@ import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { InviteStatus, ParentApi } from 'shared';
 import { AuthService } from '../../core/auth.service';
 
-type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'household';
+type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'join' | 'already' | 'household';
+
+/** An invite link (/login?invite=…) is remembered until it's used, so it survives email verification and the guard's redirects. */
+const INVITE_KEY = 'missionhq.invite';
+const INVITE_GONE: Record<Exclude<InviteStatus, 'OPEN'>, string> = {
+  EXPIRED: 'That invite link has expired. Ask for a new one.',
+  USED: 'That invite link has already been used. Ask for a new one.',
+  CANCELLED: 'That invite link was cancelled. Ask for a new one.',
+};
 
 /**
  * Parent sign-in. Google or email/password through Firebase; new email accounts verify their address before the backend
- * will link them. Someone signed in without a household lands on the invite screen. The household password form is the
+ * will link them. Someone signed in without a household joins one from an invite link, or is told to ask for one. An
+ * account already in a household can't use an invite (one household per account). The household password form is the
  * pre-Firebase sign-in, kept for one transition release (and the only form on builds without Firebase).
  */
 @Component({
@@ -18,6 +28,9 @@ type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'household';
   template: `
     <div class="login">
       <h1>Mission HQ</h1>
+      @if (invitedBy() && (step() === 'signin' || step() === 'create')) {
+        <p class="banner"><b>{{ invitedBy() }}</b> invited you to join their family on Mission HQ. Sign in, or create an account, to accept.</p>
+      }
       @switch (step()) {
         @case ('signin') {
           <p class="muted">Parent sign in</p>
@@ -65,6 +78,20 @@ type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'household';
           <ng-container *ngTemplateOutlet="feedback" />
           <button class="btn ghost" (click)="signOut()">Sign out</button>
         }
+        @case ('join') {
+          <p><b>{{ invitedBy() }}</b> invited you to join their family.</p>
+          <p class="muted center">Signed in as {{ shownEmail() }}. What should the family call you?</p>
+          <input placeholder="Your name, e.g. Mum" maxlength="60" [(ngModel)]="name" (keyup.enter)="join()" />
+          <ng-container *ngTemplateOutlet="feedback" />
+          <button class="btn" [disabled]="!name.trim() || busy()" (click)="join()">{{ busy() ? 'Joining…' : 'Join the family' }}</button>
+          <button class="link" (click)="signOut()">Use a different account</button>
+        }
+        @case ('already') {
+          <p>You're already part of a family on Mission HQ,</p>
+          <p class="muted center">so this invite can't be used with this account (one family per account for now).</p>
+          <button class="btn" (click)="continueToApp()">Continue</button>
+          <button class="link" (click)="signOut()">Use a different account</button>
+        }
         @case ('household') {
           <p class="muted">Sign in with the household password</p>
           <input type="email" placeholder="Email" [(ngModel)]="email" autocomplete="username" />
@@ -89,23 +116,42 @@ type Step = 'signin' | 'create' | 'verify' | 'reset' | 'invite' | 'household';
     .link { background: none; border: 0; color: #555; font: 700 14px inherit; cursor: pointer; padding: 0; }
     .small { font-size: 12px; font-weight: 600; color: #888; }
     .error { color: #c0392b; font-weight: 700; text-align: center; max-width: 360px; }
+    .banner { background: #fff; border: 1px solid #e3e0d8; border-radius: 12px; padding: 10px 14px; text-align: center; max-width: 360px; }
     .info { color: #1d7a45; font-weight: 700; text-align: center; max-width: 360px; }
   `,
 })
 export class LoginComponent implements OnInit {
   readonly auth = inject(AuthService);
+  private readonly api = inject(ParentApi);
   private readonly router = inject(Router);
-  email = ''; password = '';
+  private readonly route = inject(ActivatedRoute);
+  email = ''; password = ''; name = '';
+  /** Who sent the pending invite, once the backend confirmed it's still open. */
+  readonly invitedBy = signal<string | null>(null);
   readonly step = signal<Step>(this.auth.firebaseEnabled ? 'signin' : 'household');
   readonly shownEmail = signal('');
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly info = signal<string | null>(null);
 
-  /** A visitor sent here by the guard (unverified, or no household yet) sees the right screen straight away. */
+  /** Picks up an invite link, then shows a visitor sent here by the guard (unverified, no household yet) the right screen. */
   async ngOnInit() {
+    const fromLink = this.route.snapshot.queryParamMap.get('invite');
+    if (fromLink) { store(INVITE_KEY, fromLink); await this.router.navigate([], { queryParams: {}, replaceUrl: true }); }
+    const problem = await this.loadInvite();
     if (this.auth.firebaseEmail()) await this.run(() => this.finish());
+    if (problem) this.error.set(problem);
   }
+
+  join() {
+    return this.run(async () => {
+      await this.auth.acceptInvite(read(INVITE_KEY)!, this.name.trim());
+      store(INVITE_KEY, null);
+      await this.router.navigate(['/approvals']);
+    });
+  }
+
+  continueToApp() { store(INVITE_KEY, null); return this.router.navigate(['/approvals']); }
 
   go(step: Step) { this.error.set(null); this.info.set(null); this.step.set(step); }
 
@@ -137,12 +183,37 @@ export class LoginComponent implements OnInit {
 
   async signOut() { await this.auth.signOut(); this.password = ''; this.go(this.auth.firebaseEnabled ? 'signin' : 'household'); }
 
-  /** Ask the backend who this is: parents go in; unverified accounts verify; verified strangers need an invite. */
+  /**
+   * Ask the backend who this is: parents go in (or are told their account can't take the invite); unverified accounts
+   * verify; verified accounts with an open invite join; anyone else needs an invite.
+   */
   private async finish() {
     const me = await this.auth.whoAmI();
-    if (me.parent) { await this.router.navigate(['/approvals']); return; }
+    const invited = !!this.invitedBy();
+    if (me.parent) {
+      if (invited) this.go('already');
+      else await this.router.navigate(['/approvals']);
+      return;
+    }
     this.shownEmail.set(me.email ?? this.auth.firebaseEmail() ?? '');
-    this.go(me.emailVerified ? 'invite' : 'verify');
+    if (!me.emailVerified) this.go('verify');
+    else if (invited) { this.name ||= this.auth.firebaseDisplayName() ?? me.email.split('@')[0]; this.go('join'); }
+    else this.go('invite');
+  }
+
+  /** Checks the remembered invite; returns why it can't be used (and forgets it), or null. */
+  private async loadInvite(): Promise<string | null> {
+    const token = read(INVITE_KEY);
+    if (!token) return null;
+    try {
+      const p = await this.api.invitePreview(token);
+      if (p.status === 'OPEN') { this.invitedBy.set(p.invitedBy); return null; }
+      store(INVITE_KEY, null);
+      return INVITE_GONE[p.status];
+    } catch (e) {
+      if (e instanceof HttpErrorResponse && e.status === 404) { store(INVITE_KEY, null); return "That invite link isn't valid. Check you copied all of it."; }
+      return failure(e);
+    }
   }
 
   private async run(action: () => Promise<unknown>) {
@@ -157,6 +228,8 @@ export class LoginComponent implements OnInit {
 function failure(e: unknown): string | null {
   if (e instanceof HttpErrorResponse) {
     if (e.status === 401) return 'Wrong email or password.';
+    const said = (e.error as { error?: string } | null)?.error;
+    if (said && e.status >= 400 && e.status < 500) return said.charAt(0).toUpperCase() + said.slice(1) + '.';
     if (e.status === 0 || e.status >= 500) return 'Could not reach the HQ server. Check that it is running, then try again.';
     return 'Sign in failed. Try again in a moment.';
   }
@@ -172,4 +245,9 @@ function failure(e: unknown): string | null {
     case 'auth/unauthorized-domain': return "This site isn't on Firebase's list of authorized domains yet.";
     default: return 'Sign in failed. Try again in a moment.';
   }
+}
+
+function read(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
+function store(key: string, value: string | null) {
+  try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* private mode: the link just has to be reopened */ }
 }

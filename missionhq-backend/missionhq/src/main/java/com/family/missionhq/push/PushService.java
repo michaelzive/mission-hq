@@ -47,7 +47,7 @@ public class PushService {
         if (!enabled) return;
         List<PushSubscription> targets = ev.to() == PushSubscription.OwnerType.KID
                 ? subs.findByOwnerTypeAndOwnerId(ev.to(), ev.ownerId())
-                : subs.findByOwnerTypeAndOwnerIdIn(ev.to(), parents.findByHouseholdId(ev.householdId()).stream().map(Parent::getId).toList());
+                : subs.findByOwnerTypeAndOwnerIdIn(ev.to(), parents.findByHouseholdIdAndRemovedAtIsNullOrderByIdAsc(ev.householdId()).stream().map(Parent::getId).toList());
         for (var s : targets) send(s, ev);
     }
 
