@@ -22,7 +22,7 @@ GitHub repo and the service account.
 | Backend | `missionhq-dev` in GCP project `missionhq-zive`, `europe-west1` — https://missionhq-dev-qebt27j2ma-ew.a.run.app | `missionhq-prod`, same project/region — https://missionhq-prod-qebt27j2ma-ew.a.run.app |
 | Database | Neon project `missionhq-dev` (Frankfurt) | Neon project `missionhq-prod` |
 | Photos | R2 bucket `missionhq-photos-dev` | `missionhq-photos-prod` |
-| Parent login | `dad@example.com` (seeded demo household) | `PARENT_EMAIL` var |
+| Parent login | Firebase project `missionhq-dev`; the demo household belongs to `PARENT_EMAIL` | `PARENT_EMAIL` var (Firebase pending) |
 
 Secrets and variables are managed with the GitHub CLI: `gh secret set NAME --env dev` (prompts for the value) and
 `gh variable set NAME --env dev --body VALUE`; `gh secret list --env dev` / `gh variable list --env dev` to review.
@@ -90,8 +90,9 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | var | `GCP_REGION` | e.g. `europe-west1` |
 | secret | `DB_URL` | JDBC URL from step 1 |
 | secret | `DB_USER` / `DB_PASSWORD` | from step 1 |
-| var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: `dad@example.com`, the seeded demo parent, so you land in the household that has the demo kids (any other address gets a new empty household) |
-| secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup |
+| var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: your own Gmail. The dev seed (`db/seed/V9`) hands the demo household to it, so signing in with Google lands among the demo kids. Set it **before** the first deploy that applies V9: that seed runs once, and a later change makes `ParentBootstrap` create a new empty household instead |
+| secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup. Backs the household-password sign-in kept during the move to Firebase |
+| var | `FIREBASE_PROJECT_ID` | the Firebase project ID from step 6a (`missionhq-dev` on dev). Empty = Firebase sign-in off, household password only |
 | var | `CORS_ORIGINS` | **space**-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases). Not commas — the deploy action uses commas to separate env vars and silently drops everything after the first |
 | secret | `STORAGE_SECRET` | any long random string (signs photo URLs); `openssl rand -hex 32` |
 | var | `S3_ENDPOINT` / `S3_BUCKET` | from step 2 |
@@ -151,6 +152,25 @@ service actually has: `gcloud run services describe missionhq-prod --region euro
 Custom domains are optional — pages.dev is HTTPS and installable. If you add one, add it to `CORS_ORIGINS` and the R2 CORS
 policy too.
 
+## 6a. Firebase Authentication (parent sign-in, once per environment)
+
+Firebase holds parents' sign-in accounts (Google and email/password) and sends the verification and password-reset
+emails. The backend never sees a password: it checks that each request's token was issued by *its* Firebase project.
+Use a Firebase project of its own, not the Cloud Run project; a Google Cloud project can hold only one.
+
+1. https://console.firebase.google.com → **Create a project** (`MissionHQ Dev` / `MissionHQ`), Google Analytics off. Note
+   the project ID it shows.
+2. **Build → Authentication → Get started → Sign-in method**: enable **Email/Password** (first toggle only) and
+   **Google** (public name `Mission HQ`, your support email).
+3. **Authentication → Settings → Authorized domains**: add the parent app's origin host (`develop.missionhq-parent.pages.dev`
+   on dev, `missionhq-parent.pages.dev` on prod). Dev also needs `localhost`: projects created after April 2025 no longer
+   include it by default. Under **User account linking**, keep **Link accounts that use the same email**.
+4. **Project settings → General → Your apps → Web (`</>`)**, no Firebase Hosting. Copy `apiKey`, `authDomain`,
+   `projectId` and `appId` into `firebase` in `missionhq-web/projects/parent/src/environments/environment.dev.ts` (and
+   `environment.ts` for local runs) or `environment.prod.ts`. These values are public by design; the authorized domains
+   and the backend's project check are what protect it.
+5. Set `FIREBASE_PROJECT_ID` on the GitHub environment (step 4) and redeploy the backend.
+
 ## 7. Push notifications (optional, but the point of the parent app)
 
 Generate a key pair once per environment:
@@ -164,7 +184,8 @@ Push only arrives in the **installed** app (production build, HTTPS) — not in 
 
 ## 8. Devices
 
-1. Parent app: sign in with `PARENT_EMAIL` / `PARENT_PASSWORD`, then Kids → generate a pairing code.
+1. Parent app: sign in with Google as `PARENT_EMAIL` (or, until Firebase is on in that environment, the household
+   password `PARENT_EMAIL` / `PARENT_PASSWORD`), then Kids → generate a pairing code.
 2. Kid tablet: open the kid app URL in Chrome, enter the code, accept "Add to home screen" and the alerts prompt. The
    device token is stored on the tablet; the code is single-use.
 3. Parent phone: open the parent app, "Add to home screen", turn on alerts from the header.
@@ -209,7 +230,10 @@ changed: it only accepts the new checksum and leaves the database as the old ver
 `docker compose up -d` + the IntelliJ `backend` run config (or `SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run`) and
 `npm start` / `npm run start:parent`. Local uses `STORAGE_TYPE=local` and no CORS config; nothing here applies.
 
-- **Parent sign-in:** `dad@example.com` / `change-me` (the dev seed parent; `ParentBootstrap` sets the password on startup).
+- **Parent sign-in:** run the backend with `PARENT_EMAIL` set to your Gmail (`$env:PARENT_EMAIL = "you@gmail.com"`)
+  and sign in with Google; local runs use the `missionhq-dev` Firebase project. The dev seed hands the demo household to
+  that address once per database, so keep setting it: without it, startup creates an empty household for
+  `dad@example.com`. The household password (`PARENT_EMAIL` / `change-me`) still works during the transition.
   The login page says "Could not reach the HQ server" when the backend is down and "Wrong email or password" only on a
   real 401. On a deployed app, the unreachable message means the backend is down, `API_BASE_URL` is wrong, or
   `CORS_ORIGINS` doesn't list the page's origin.

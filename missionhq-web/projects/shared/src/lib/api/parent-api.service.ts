@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, Behaviour, BehaviourInput, Household, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
+import { ApprovalQueue, AuthMe, Behaviour, BehaviourInput, Household, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -9,6 +9,7 @@ export class ParentApi {
 
   pushPublicKey() { return firstValueFrom(this.http.get<{ publicKey: string }>('/push/public-key')); }
   pushSubscribe(sub: PushSubscriptionJSON) { return firstValueFrom(this.http.post<void>('/push/subscribe', sub)); }
+  authMe() { return firstValueFrom(this.http.get<AuthMe>('/auth/me')); }
   household() { return firstValueFrom(this.http.get<Household>('/household')); }
   kids() { return firstValueFrom(this.http.get<KidSummary[]>('/kids')); }
   createKid(body: KidInput) { return firstValueFrom(this.http.post<KidSummary>('/kids', body)); }

@@ -18,6 +18,8 @@ export interface SubmitResponse { completionId: number; status: string; }
 export interface UploadTicket { key: string; url: string; method: string; headers: Record<string, string>; }
 
 // ---- parent side ----
+/** parent false = signed in but not in a household yet (needs an invite). */
+export interface AuthMe { parent: boolean; email: string; emailVerified: boolean; }
 export type RewardCategory = 'GEAR' | 'GAME_TIME' | 'OUTING' | 'TREAT' | 'OTHER';
 export interface PendingMission { completionId: number; kidId: number; callsign: string; title: string; points: number; photoKey: string | null; photoUrl: string | null; submittedAt: string; }
 export interface PendingReward { rewardId: number; kidId: number; callsign: string; name: string; category: RewardCategory; estimatedCost: number | null; suggestedPrice: number; }

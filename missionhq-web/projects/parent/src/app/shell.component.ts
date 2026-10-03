@@ -37,5 +37,5 @@ export class ShellComponent {
   private readonly auth = inject(AuthService);
   readonly push = inject(PushService);
   private readonly router = inject(Router);
-  signOut() { this.auth.signOut(); this.router.navigate(['/login']); }
+  async signOut() { await this.auth.signOut(); await this.router.navigate(['/login']); }
 }

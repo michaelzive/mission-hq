@@ -4,3 +4,8 @@
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+    placeholders:
+      demo_parent_email: ${missionhq.parent.email}   # V9 seed hands the demo household to this parent
+missionhq:
+  firebase:
+    project-id: ${FIREBASE_PROJECT_ID:missionhq-dev}   # the dev Firebase project; local runs sign in against it too

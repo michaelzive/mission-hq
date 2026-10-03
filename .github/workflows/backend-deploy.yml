@@ -47,6 +47,7 @@ jobs:
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             PARENT_EMAIL=${{ vars.PARENT_EMAIL }}
             PARENT_PASSWORD=${{ secrets.PARENT_PASSWORD }}
+            FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}
             CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
             STORAGE_TYPE=s3
             STORAGE_SECRET=${{ secrets.STORAGE_SECRET }}

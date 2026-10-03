@@ -1,7 +1,7 @@
 import { ApplicationConfig, inject, isDevMode, provideBrowserGlobalErrorListeners, provideEnvironmentInitializer } from '@angular/core';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
-import { API_BASE_URL, PARENT_CREDENTIALS, basicAuthInterceptor } from 'shared';
+import { API_BASE_URL, PARENT_AUTHORIZATION, parentAuthInterceptor } from 'shared';
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { UpdateService } from './core/update.service';
@@ -13,11 +13,11 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withFetch(), withInterceptors([basicAuthInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([parentAuthInterceptor])),
     { provide: API_BASE_URL, useValue: environment.apiBaseUrl },
     {
-      provide: PARENT_CREDENTIALS,
-      useFactory: (a: AuthService) => () => a.credentials(),
+      provide: PARENT_AUTHORIZATION,
+      useFactory: (a: AuthService) => () => a.authorization(),
       deps: [AuthService],
     },
     provideEnvironmentInitializer(() => { inject(UpdateService); inject(PushService); }),
