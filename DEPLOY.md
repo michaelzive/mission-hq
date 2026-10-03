@@ -22,7 +22,7 @@ GitHub repo and the service account.
 | Backend | `missionhq-dev` in GCP project `missionhq-zive`, `europe-west1` — https://missionhq-dev-qebt27j2ma-ew.a.run.app | `missionhq-prod`, same project/region — https://missionhq-prod-qebt27j2ma-ew.a.run.app |
 | Database | Neon project `missionhq-dev` (Frankfurt) | Neon project `missionhq-prod` |
 | Photos | R2 bucket `missionhq-photos-dev` | `missionhq-photos-prod` |
-| Parent login | Firebase project `missionhq-dev`; the demo household belongs to `PARENT_EMAIL` | `PARENT_EMAIL` var (Firebase pending) |
+| Parent login | Firebase project `missionhq-dev`; the demo household belongs to `PARENT_EMAIL` | Firebase project `missionhq-prod`; `PARENT_EMAIL` links on first Google sign-in |
 
 Secrets and variables are managed with the GitHub CLI: `gh secret set NAME --env dev` (prompts for the value) and
 `gh variable set NAME --env dev --body VALUE`; `gh secret list --env dev` / `gh variable list --env dev` to review.
@@ -92,7 +92,7 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | secret | `DB_USER` / `DB_PASSWORD` | from step 1 |
 | var | `PARENT_EMAIL` | prod: your sign-in email — `ParentBootstrap` creates the first household + parent from these on first boot. dev: your own Gmail. The dev seed (`db/seed/V9`) hands the demo household to it, so signing in with Google lands among the demo kids. Set it **before** the first deploy that applies V9: that seed runs once, and a later change makes `ParentBootstrap` create a new empty household instead |
 | secret | `PARENT_PASSWORD` | rotate any time; the backend re-syncs the stored hash on startup. Backs the household-password sign-in kept during the move to Firebase |
-| var | `FIREBASE_PROJECT_ID` | the Firebase project ID from step 6a (`missionhq-dev` on dev). Empty = Firebase sign-in off, household password only |
+| var | `FIREBASE_PROJECT_ID` | the Firebase project ID from step 6a (`missionhq-dev` on dev, `missionhq-prod` on prod). Empty = Firebase sign-in off, household password only |
 | var | `CORS_ORIGINS` | **space**-separated Pages origins from step 6, e.g. `https://missionhq-kid.pages.dev https://missionhq-parent.pages.dev` (dev: the `develop.` branch aliases). Not commas — the deploy action uses commas to separate env vars and silently drops everything after the first |
 | secret | `STORAGE_SECRET` | any long random string (signs photo URLs); `openssl rand -hex 32` |
 | var | `S3_ENDPOINT` / `S3_BUCKET` | from step 2 |
