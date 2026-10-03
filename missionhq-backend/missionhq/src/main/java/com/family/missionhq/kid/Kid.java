@@ -16,7 +16,10 @@ public class Kid {
     private int balance;
     private int lifetimeEarned;
     private int rankOrdinal;
+    /** Cached by StreakService, which recomputes the streak from mission history. */
     private int streakDays;
     private LocalDate streakLastDate;
+    /** Latest day a streak milestone bonus was paid for, so a recomputed streak never pays the same milestone twice. */
+    private LocalDate streakBonusThrough;
     private int prestigeStars;
 }

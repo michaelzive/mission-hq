@@ -5,6 +5,7 @@ import { SoundService } from '../../core/sound.service';
 /**
  * The "evidence upload" beat. Opens the camera directly, resizes the photo client-side (~1000px, JPEG 0.7)
  * so uploads are 100–200 KB, PUTs it to a presigned URL, then hands back the photoKey.
+ * A mission that needs no photo skips all that: the kid's word is enough, and HQ approves it on the spot.
  */
 @Component({
   selector: 'kid-mission-sheet',
@@ -12,15 +13,24 @@ import { SoundService } from '../../core/sound.service';
     <div class="modal" (click)="cancel.emit()">
       <div class="sheet" (click)="$event.stopPropagation()">
         <h2>{{ mission().title }}</h2>
-        <p class="muted">Take a photo of the finished work. HQ checks it and confirms your points.</p>
-        <label class="camera" [class.shot]="preview()">
-          @if (preview(); as src) { <img [src]="src" alt="Your photo" /> } @else { <span>Tap to take photo</span> }
-          <input type="file" accept="image/*" capture="environment" hidden (change)="onPhoto($event)" />
-        </label>
+        @if (date()) { <p class="late">Reporting for yesterday</p> }
+        @if (mission().requiresPhoto) {
+          <p class="muted">Take a photo of the finished work. HQ checks it and confirms your points.</p>
+          <label class="camera" [class.shot]="preview()">
+            @if (preview(); as src) { <img [src]="src" alt="Your photo" /> } @else { <span>Tap to take photo</span> }
+            <input type="file" accept="image/*" capture="environment" hidden (change)="onPhoto($event)" />
+          </label>
+        } @else {
+          <p class="muted">Done it? No photo needed. HQ trusts you on this one, so your +{{ mission().points }} lands straight away.</p>
+        }
         @if (error(); as e) { <p class="error">{{ e }}</p> }
         <div class="row end">
           <button class="btn ghost" (click)="cancel.emit()">Not yet</button>
-          <button class="btn" [disabled]="!preview() || busy()" (click)="send()">{{ busy() ? 'Sending…' : 'Send mission report' }}</button>
+          @if (mission().requiresPhoto) {
+            <button class="btn" [disabled]="!preview() || busy()" (click)="send()">{{ busy() ? 'Sending…' : 'Send mission report' }}</button>
+          } @else {
+            <button class="btn" (click)="report()">Yes, it's done</button>
+          }
         </div>
       </div>
     </div>`,
@@ -32,6 +42,7 @@ import { SoundService } from '../../core/sound.service';
     .camera.shot { border-style: solid; border-color: var(--good); }
     .camera img { width: 100%; height: 100%; object-fit: cover; }
     .end { justify-content: flex-end; }
+    .late { font-weight: 800; color: var(--accent); }
     .error { color: #ff5e5b; font-weight: 800; }
   `,
 })
@@ -39,7 +50,9 @@ export class MissionSheetComponent {
   private readonly sound = inject(SoundService);
   private readonly api = inject(KidApi);
   readonly mission = input.required<MissionCard>();
-  readonly submitted = output<{ behaviourId: number; photoKey: string }>();
+  /** Yesterday's ISO date for a late report; null = today. */
+  readonly date = input<string | null>(null);
+  readonly submitted = output<MissionReport>();
   readonly cancel = output<void>();
   readonly preview = signal<string | null>(null);
   readonly busy = signal(false);
@@ -54,20 +67,25 @@ export class MissionSheetComponent {
     this.sound.tap();
   }
 
+  report() { this.submitted.emit({ mission: this.mission(), photoKey: null, date: this.date() }); }
+
   async send() {
     if (!this.blob) return;
     this.busy.set(true); this.error.set(null);
     try {
       const id = this.mission().behaviourId;
-      const ticket = await this.api.photoTicket(id);
+      const ticket = await this.api.photoTicket(id, this.date() ?? undefined);
       const photoKey = await this.api.uploadPhoto(ticket, this.blob);
-      this.submitted.emit({ behaviourId: id, photoKey });
+      this.submitted.emit({ mission: this.mission(), photoKey, date: this.date() });
     } catch {
       this.error.set('The photo did not upload. Try again.');
       this.busy.set(false);
     }
   }
 }
+
+/** photoKey null: a mission that needs no photo. date null: today. */
+export interface MissionReport { mission: MissionCard; photoKey: string | null; date: string | null; }
 
 async function resize(file: File, max: number, quality: number): Promise<{ dataUrl: string; blob: Blob }> {
   const bmp = await createImageBitmap(file);

@@ -1,14 +1,15 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApprovalQueue, Household, ParentApi, PendingMission, PendingReward } from 'shared';
+import { ApprovalQueue, Household, HouseholdSettings, KidSummary, MissionCard, ParentApi, PendingMission, PendingReward } from 'shared';
 
 const BONUS_PRESETS = [0, 5, 15];
 const TIERS = [1, 2, 3];
 
 /**
  * The parent's inbox. One glance per item, one tap to approve.
- * Everything a kid submits lands here: mission photos and reward suggestions.
+ * Everything a kid submits lands here: mission photos and reward suggestions. Missions a parent saw done but the kid
+ * didn't report can be logged here too, at the household's reduced parent-log rate.
  */
 @Component({
   selector: 'parent-approvals',
@@ -35,13 +36,23 @@ export class ApprovalsComponent implements OnInit {
   readonly price = signal<Record<number, number>>({});
   readonly tier = signal<Record<number, number | null>>({});
   readonly rate = signal<number>(1);
+  readonly settings = signal<HouseholdSettings>({ timezone: 'Africa/Johannesburg', reminderTime: '18:30', parentLogPercent: 50 });
+  readonly timezones = Intl.supportedValuesOf('timeZone');
+
+  /** "Saw them do it?": whose missions are showing, and for which day. */
+  readonly kids = signal<KidSummary[]>([]);
+  readonly logKid = signal<number | null>(null);
+  readonly logDay = signal<'today' | 'yesterday'>('today');
+  readonly logMissions = signal<MissionCard[]>([]);
 
   async ngOnInit() { await this.refresh(); }
 
   async refresh() {
     try {
-      const [q, hh] = await Promise.all([this.api.queue(), this.api.household()]);
-      this.queue.set(q); this.household.set(hh); this.rate.set(hh.pointsPerCurrencyUnit);
+      const [q, hh, kids] = await Promise.all([this.api.queue(), this.api.household(), this.api.kids()]);
+      this.queue.set(q); this.household.set(hh); this.rate.set(hh.pointsPerCurrencyUnit); this.kids.set(kids);
+      this.settings.set({ timezone: hh.timezone, reminderTime: hh.reminderTime?.slice(0, 5) ?? null, parentLogPercent: hh.parentLogPercent });
+      if (this.logKid() !== null) await this.loadLog();
       // Seed the editable price with the rate-derived suggestion, but keep any value already typed.
       this.price.update(p => { const next = { ...p }; for (const r of q.rewards) next[r.rewardId] ??= r.suggestedPrice; return next; });
       this.error.set(null);
@@ -71,6 +82,40 @@ export class ApprovalsComponent implements OnInit {
     await this.run(r.rewardId, () => this.api.approveReward(r.rewardId, price, this.tierFor(r)), `${r.name} added to ${r.callsign}'s shop at ${price} pts`);
   }
   async declineReward(r: PendingReward) { await this.run(r.rewardId, () => this.api.declineReward(r.rewardId), 'Declined'); }
+
+  // ---- late reports ----
+  /** The family's local date, so "for yesterday" is right whatever time zone this phone is in. */
+  localDate(offsetDays = 0) {
+    const tz = this.household()?.timezone;
+    return new Intl.DateTimeFormat('en-CA', tz ? { timeZone: tz } : {}).format(new Date(Date.now() + offsetDays * 86_400_000));
+  }
+  isLate(m: PendingMission) { return m.missionDate !== this.localDate(); }
+
+  // ---- saw them do it ----
+  async pickLogKid(id: number) { this.logKid.set(this.logKid() === id ? null : id); await this.loadLog(); }
+  async pickLogDay(d: 'today' | 'yesterday') { this.logDay.set(d); await this.loadLog(); }
+  private logDate() { return this.localDate(this.logDay() === 'yesterday' ? -1 : 0); }
+  private async loadLog() {
+    const kid = this.logKid();
+    if (kid === null) { this.logMissions.set([]); return; }
+    try { this.logMissions.set(await this.api.kidMissions(kid, this.logDate())); }
+    catch { this.error.set('Could not load their missions.'); }
+  }
+  /** Mirrors Household.parentLogPoints on the server. */
+  logPoints(m: MissionCard) { return Math.max(1, Math.ceil(m.points * (this.household()?.parentLogPercent ?? 50) / 100)); }
+  async logIt(m: MissionCard) {
+    const kid = this.logKid(); if (kid === null) return;
+    const name = this.kids().find(k => k.id === kid)?.callsign ?? 'them';
+    await this.run(m.behaviourId, () => this.api.logMission(kid, m.behaviourId, this.logDate()), `Logged ${m.title} for ${name} · +${this.logPoints(m)} pts`);
+  }
+
+  async saveSettings() {
+    const s = this.settings();
+    if (s.parentLogPercent < 1 || s.parentLogPercent > 100) { this.error.set('Parent-logged share must be 1 to 100%.'); return; }
+    try { await this.api.saveSettings(s); this.showToast('Settings saved'); await this.refresh(); }
+    catch { this.error.set('Could not save the settings.'); }
+  }
+  setSetting(patch: Partial<HouseholdSettings>) { this.settings.update(s => ({ ...s, ...patch })); }
 
   async saveRate() {
     try { await this.api.setRate(this.rate()); this.showToast('Rate updated for future rewards'); await this.refresh(); }

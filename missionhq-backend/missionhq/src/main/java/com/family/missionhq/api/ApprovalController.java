@@ -1,6 +1,7 @@
 package com.family.missionhq.api;
 
 import com.family.missionhq.celebration.CelebrationService;
+import com.family.missionhq.household.HouseholdClock;
 import com.family.missionhq.household.HouseholdRepository;
 import com.family.missionhq.kid.DeviceService;
 import com.family.missionhq.kid.KidRepository;
@@ -18,9 +19,11 @@ import com.family.missionhq.storage.PhotoStorage;
 import com.family.missionhq.push.PushRequested;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,9 +42,10 @@ public class ApprovalController {
     private final HouseholdRepository households;
     private final DeviceService devices;
     private final PhotoStorage photos;
+    private final HouseholdClock clock;
     private final ApplicationEventPublisher events;
 
-    public record PendingMission(Long completionId, Long kidId, String callsign, String title, int points, String photoKey, String photoUrl, java.time.Instant submittedAt) {}
+    public record PendingMission(Long completionId, Long kidId, String callsign, String title, int points, String photoKey, String photoUrl, java.time.Instant submittedAt, LocalDate missionDate) {}
     public record PendingReward(Long rewardId, Long kidId, String callsign, String name, Reward.Category category, BigDecimal estimatedCost, int suggestedPrice) {}
     public record Queue(List<PendingMission> missions, List<PendingReward> rewards) {}
 
@@ -52,7 +56,7 @@ public class ApprovalController {
             var b = behaviours.findById(c.getBehaviourId()).orElseThrow();
             var k = kids.findById(c.getKidId()).orElseThrow();
             var url = c.getPhotoKey() == null ? null : photos.presignView(c.getPhotoKey(), java.time.Duration.ofMinutes(30));
-            return new PendingMission(c.getId(), k.getId(), k.getCallsign(), b.getTitle(), b.getPoints(), c.getPhotoKey(), url, c.getSubmittedAt());
+            return new PendingMission(c.getId(), k.getId(), k.getCallsign(), b.getTitle(), b.getPoints(), c.getPhotoKey(), url, c.getSubmittedAt(), c.getMissionDate());
         }).toList();
         var r = rewardRepo.findByHouseholdIdAndStatusOrderByIdAsc(householdId, Reward.Status.PENDING).stream().map(x -> {
             var k = kids.findById(x.getKidId()).orElseThrow();
@@ -71,6 +75,22 @@ public class ApprovalController {
     @PostMapping("/approvals/missions/{id}/send-back")
     public void sendBack(@PathVariable Long id, @RequestBody(required = false) SendBack body) {
         missions.sendBack(id, current.get(), body != null ? body.note() : null);
+    }
+
+    /** A kid's missions as they see them on that day (default today), so a parent can log one they saw done. */
+    @GetMapping("/kids/{kidId}/missions")
+    public List<MissionService.MissionCard> kidMissions(@PathVariable Long kidId, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        var kid = current.kid(kidId);
+        return missions.cardsFor(kid, date != null ? date : clock.today(kid.getHouseholdId()));
+    }
+
+    public record LogMission(LocalDate date) {}
+    @PostMapping("/kids/{kidId}/missions/{behaviourId}/log")
+    public MissionService.MissionCard logMission(@PathVariable Long kidId, @PathVariable Long behaviourId, @RequestBody(required = false) LogMission body) {
+        var kid = current.kid(kidId);
+        var date = body != null && body.date() != null ? body.date() : clock.today(kid.getHouseholdId());
+        missions.logForKid(current.get(), kid, behaviourId, date);
+        return missions.cardsFor(kid, date).stream().filter(c -> c.behaviourId().equals(behaviourId)).findFirst().orElseThrow();
     }
 
     public record ApproveReward(Integer price, Integer tier) {}

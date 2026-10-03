@@ -60,6 +60,7 @@ jobs:
             VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
             VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
             VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}
+            TICK_SECRET=${{ secrets.TICK_SECRET }}
 
       - name: Smoke test
         run: curl -fsS --retry 5 --retry-delay 5 "${{ steps.deploy.outputs.url }}/actuator/health"

@@ -6,6 +6,7 @@ import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { UpdateService } from './core/update.service';
 import { PushService } from './core/push.service';
+import { IdleService } from './core/idle.service';
 import { SessionService } from './core/session.service';
 import { provideServiceWorker } from '@angular/service-worker';
 
@@ -20,7 +21,7 @@ export const appConfig: ApplicationConfig = {
       useFactory: (s: SessionService) => () => s.deviceToken(),
       deps: [SessionService],
     },
-    provideEnvironmentInitializer(() => { inject(UpdateService); inject(PushService); }),
+    provideEnvironmentInitializer(() => { inject(UpdateService); inject(PushService); inject(IdleService); }),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',

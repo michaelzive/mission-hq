@@ -8,10 +8,21 @@ export interface RankView { name: string; ordinal: number; nextName: string | nu
 export interface TermGoal { rewardId: number; name: string; target: number; progress: number; }
 export interface MeView {
   id: number; callsign: string; themeCode: ThemeCode; balance: number; lifetimeEarned: number; streakDays: number;
+  /** This week's one missed-day freeze is still unspent. */
+  streakFreezeReady: boolean;
   rank: RankView; termGoal: TermGoal | null; pointsPerCurrencyUnit: number; avatar: AvatarView;
 }
-/** forMe: directed at this kid alone rather than everyone in the household. */
-export interface MissionCard { behaviourId: number; title: string; points: number; bonus: boolean; requiresPhoto: boolean; status: MissionStatus; forMe: boolean; }
+/**
+ * forMe: directed at this kid alone rather than everyone in the household. weekly: done once per Monday-Sunday week.
+ * loggedByParent/pointsAwarded: an APPROVED card a parent logged, which paid less than reporting it yourself.
+ * requiresPhoto false: the kid's word is enough, and the report is approved on the spot.
+ */
+export interface MissionCard {
+  behaviourId: number; title: string; points: number; bonus: boolean; weekly: boolean; requiresPhoto: boolean; status: MissionStatus; forMe: boolean;
+  loggedByParent: boolean; pointsAwarded: number | null;
+}
+/** Yesterday's unreported missions while they can still be reported (until is local "HH:mm:ss"); date null once the window closes. */
+export interface LateMissions { date: string | null; until: string | null; missions: MissionCard[]; }
 export interface Celebration { id: number; kidId: number; type: CelebrationType; points: number | null; refId: number | null; payload: string | null; }
 export interface PairResponse { deviceToken: string; kidId: number; callsign: string; themeCode: ThemeCode; }
 export interface SubmitResponse { completionId: number; status: string; }
@@ -29,10 +40,15 @@ export type InviteStatus = 'OPEN' | 'EXPIRED' | 'USED' | 'CANCELLED';
 export type InviteKind = 'PARENT' | 'FAMILY';
 export interface InvitePreview { invitedBy: string; status: InviteStatus; kind: InviteKind; }
 export type RewardCategory = 'GEAR' | 'GAME_TIME' | 'OUTING' | 'TREAT' | 'OTHER';
-export interface PendingMission { completionId: number; kidId: number; callsign: string; title: string; points: number; photoKey: string | null; photoUrl: string | null; submittedAt: string; }
+export interface PendingMission { completionId: number; kidId: number; callsign: string; title: string; points: number; photoKey: string | null; photoUrl: string | null; submittedAt: string; missionDate: string; }
 export interface PendingReward { rewardId: number; kidId: number; callsign: string; name: string; category: RewardCategory; estimatedCost: number | null; suggestedPrice: number; }
 export interface ApprovalQueue { missions: PendingMission[]; rewards: PendingReward[]; }
-export interface Household { id: number; name: string; pointsPerCurrencyUnit: number; currency: string; seasonName: string; }
+/** reminderTime: local "HH:mm:ss" of the evening push to kids with missions left, null = off. parentLogPercent: share paid when a parent logs a mission. */
+export interface Household {
+  id: number; name: string; pointsPerCurrencyUnit: number; currency: string; seasonName: string;
+  timezone: string; reminderTime: string | null; parentLogPercent: number;
+}
+export type HouseholdSettings = Pick<Household, 'timezone' | 'reminderTime' | 'parentLogPercent'>;
 export interface KidSummary { id: number; callsign: string; themeCode: ThemeCode; balance: number; lifetimeEarned: number; streakDays: number; rankName: string; }
 export interface KidInput { callsign: string; themeCode: ThemeCode; }
 export const THEME_CODES: ThemeCode[] = ['AIRSOFT', 'HERO'];

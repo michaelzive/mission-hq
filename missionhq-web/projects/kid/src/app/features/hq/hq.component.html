@@ -11,27 +11,35 @@
       }
       <div class="stats">
         <div class="stat"><div class="n">{{ m.balance }}</div><div class="l">points to spend</div></div>
-        <div class="stat"><div class="n">{{ m.streakDays }}</div><div class="l">day streak</div></div>
+        <div class="stat">
+          <div class="n">{{ m.streakDays }}</div>
+          <div class="l">day streak</div>
+          <div class="freeze" [class.used]="!m.streakFreezeReady">
+            {{ m.streakFreezeReady ? 'Freeze ready: miss one day this week and it holds' : 'Freeze used this week' }}
+          </div>
+        </div>
         <div class="stat"><div class="n">{{ m.rank.pointsToNext ?? '—' }}</div><div class="l">to next rank: {{ m.rank.nextName ?? 'max rank' }}</div></div>
       </div>
     }
+
+    @if (late(); as l) {
+      @if (l.missions.length && l.date) {
+        <section class="late">
+          <h2>Forgot one yesterday?</h2>
+          <p class="muted">You can still report these until {{ until(l.until) }}.</p>
+          <div class="grid">
+            @for (c of l.missions; track c.behaviourId) {
+              <ng-container *ngTemplateOutlet="card; context: { $implicit: c, date: l.date }" />
+            }
+          </div>
+        </section>
+      }
+    }
+
     <h2>{{ t().missions }}</h2>
     <div class="grid">
       @for (c of missions(); track c.behaviourId) {
-        <div class="card" [class.bonus]="c.bonus" [class.pending]="c.status === 'PENDING'" [class.approved]="c.status === 'APPROVED'"
-             [attr.data-behaviour]="c.behaviourId" (click)="open(c)">
-          <div class="p">+{{ c.points }}</div>
-          @if (c.forMe) { <div class="tag">Just for you</div> }
-          <div class="t">{{ c.bonus ? 'Daily bonus: ' : '' }}{{ c.title }}</div>
-          <div class="s">
-            @switch (c.status) {
-              @case ('TODO') { {{ c.bonus ? 'Expires tonight · photo proof' : 'Photo proof' }} }
-              @case ('PENDING') { Awaiting HQ… }
-              @case ('APPROVED') { {{ t().hqConfirmed }} }
-            }
-          </div>
-          @if (c.status === 'APPROVED') { <div class="stamp">{{ t().hqConfirmed }} ✓</div> }
-        </div>
+        <ng-container *ngTemplateOutlet="card; context: { $implicit: c, date: null }" />
       } @empty { <p class="muted">No missions today. Enjoy it.</p> }
     </div>
     @if (error(); as e) { <p class="error">{{ e }}</p> }
@@ -40,6 +48,32 @@
   <kid-celebration-player [balanceEl]="balanceLookup" [missionEl]="missionLookup" (played)="refreshMe()" (acked)="ack($event)" />
 </div>
 
-@if (sheet(); as m) {
-  <kid-mission-sheet [mission]="m" (cancel)="sheet.set(null)" (submitted)="submit($event)" />
+<ng-template #card let-c let-date="date">
+  <div class="card" [class.bonus]="c.bonus" [class.pending]="c.status === 'PENDING'" [class.approved]="c.status === 'APPROVED'"
+       [attr.data-behaviour]="date ? null : c.behaviourId" [attr.data-late]="date ? c.behaviourId : null" (click)="open(c, date)">
+    <div class="p">+{{ c.points }}</div>
+    @if (c.forMe) { <div class="tag">Just for you</div> }
+    <div class="t">{{ c.bonus ? 'Daily bonus: ' : '' }}{{ c.title }}</div>
+    <div class="s">
+      @switch (c.status) {
+        @case ('TODO') { {{ todoHint(c) }} }
+        @case ('PENDING') { Awaiting HQ… }
+        @case ('APPROVED') { {{ c.weekly ? 'Done this week' : t().hqConfirmed }} }
+      }
+    </div>
+    @if (c.status === 'APPROVED') {
+      @if (c.loggedByParent) {
+        <div class="stamp logged">
+          <span>Logged by {{ t().hq }} · +{{ c.pointsAwarded }}</span>
+          <small>Report it yourself next time for +{{ c.points }}</small>
+        </div>
+      } @else {
+        <div class="stamp">{{ c.weekly ? 'Done this week' : t().hqConfirmed }} ✓</div>
+      }
+    }
+  </div>
+</ng-template>
+
+@if (sheet(); as s) {
+  <kid-mission-sheet [mission]="s.mission" [date]="s.date" (cancel)="sheet.set(null)" (submitted)="submit($event)" />
 }

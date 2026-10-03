@@ -1,12 +1,32 @@
 <h1>Approvals</h1>
 
 @if (household(); as hh) {
-  <section class="rate">
-    <label>Exchange rate: 1 point = {{ hh.currency }}</label>
-    <input type="number" step="0.1" min="0.1" [ngModel]="rate()" (ngModelChange)="rate.set($event)" />
-    <button class="btn small" [disabled]="rate() === hh.pointsPerCurrencyUnit" (click)="saveRate()">Save</button>
-    <span class="muted">Only affects prices set from now on.</span>
-  </section>
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="rate">
+      <label>Exchange rate: 1 point = {{ hh.currency }}</label>
+      <input type="number" step="0.1" min="0.1" [ngModel]="rate()" (ngModelChange)="rate.set($event)" />
+      <button class="btn small" [disabled]="rate() === hh.pointsPerCurrencyUnit" (click)="saveRate()">Save</button>
+      <span class="muted">Only affects prices set from now on.</span>
+    </div>
+    <div class="rate">
+      <label>Missions you log pay</label>
+      <input type="number" min="1" max="100" [ngModel]="settings().parentLogPercent" (ngModelChange)="setSetting({ parentLogPercent: +$event })" /> %
+      <span class="muted">of their points. Reporting it themselves pays in full and keeps their streak going.</span>
+    </div>
+    <div class="rate">
+      <label class="check"><input type="checkbox" [ngModel]="settings().reminderTime !== null" (ngModelChange)="setSetting({ reminderTime: $event ? '18:30' : null })" /> Evening reminder at</label>
+      <input type="time" [disabled]="settings().reminderTime === null" [ngModel]="settings().reminderTime" (ngModelChange)="setSetting({ reminderTime: $event || null })" />
+      <span class="muted">Only kids with missions still open get it, once a day.</span>
+    </div>
+    <div class="rate">
+      <label>Time zone</label>
+      <select [ngModel]="settings().timezone" (ngModelChange)="setSetting({ timezone: $event })">
+        @for (z of timezones; track z) { <option [value]="z">{{ z }}</option> }
+      </select>
+      <button class="btn small" (click)="saveSettings()">Save settings</button>
+    </div>
+  </details>
 }
 
 @if (error(); as e) { <p class="error">{{ e }}</p> }
@@ -24,7 +44,7 @@
       </button>
       <div class="body">
         <div class="head"><b>{{ m.callsign }}</b> · {{ m.title }} <span class="pts">+{{ m.points }}</span></div>
-        <div class="muted">submitted {{ m.submittedAt | date:'EEE HH:mm' }}</div>
+        <div class="muted">submitted {{ m.submittedAt | date:'EEE HH:mm' }} @if (isLate(m)) { · <span class="tag">for {{ m.missionDate | date:'EEE d MMM' }}</span> }</div>
         <div class="row">
           <span class="muted">Bonus:</span>
           @for (b of bonusPresets; track b) {
@@ -39,6 +59,35 @@
       </div>
     </article>
   }
+}
+
+@if (kids().length) {
+  <section class="log">
+    <h2>Saw them do it?</h2>
+    <p class="muted">Log a mission they did but didn't report. It pays {{ household()?.parentLogPercent }}% of the points and doesn't count toward their streak, so reporting it themselves stays the better deal.</p>
+    <div class="row">
+      @for (k of kids(); track k.id) {
+        <button class="chip" [class.on]="logKid() === k.id" (click)="pickLogKid(k.id)">{{ k.callsign }}</button>
+      }
+      @if (logKid() !== null) {
+        <span class="sep"></span>
+        <button class="chip" [class.on]="logDay() === 'today'" (click)="pickLogDay('today')">Today</button>
+        <button class="chip" [class.on]="logDay() === 'yesterday'" (click)="pickLogDay('yesterday')">Yesterday</button>
+      }
+    </div>
+    @if (logKid() !== null) {
+      @for (m of logMissions(); track m.behaviourId) {
+        <div class="logrow" [class.busy]="isBusy(m.behaviourId)">
+          <span class="what">{{ m.title }} <span class="pts">+{{ m.points }}</span></span>
+          @switch (m.status) {
+            @case ('TODO') { <button class="btn small go" (click)="logIt(m)">Log it · +{{ logPoints(m) }}</button> }
+            @case ('PENDING') { <span class="muted">They reported it: approve it above</span> }
+            @case ('APPROVED') { <span class="muted">{{ m.loggedByParent ? 'Logged by you' : 'Done' }} ✓</span> }
+          }
+        </div>
+      } @empty { <p class="muted">No missions for them that day.</p> }
+    }
+  </section>
 }
 
 @if (queue().rewards.length) {

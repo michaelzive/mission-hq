@@ -98,7 +98,8 @@ class TenancyIT {
         var bravo = kidService.create(stranger.getHouseholdId(), "Bravo", "HERO");
         var today = LocalDate.now();
         var everyone = behaviourService.create(stranger, null, new BehaviourService.Input("Homework", 10, Behaviour.Kind.DAILY, false, null, true));
-        var piano = behaviourService.create(stranger, alpha, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true));
+        // needs a photo, so a report waits for a parent instead of being approved on the spot
+        var piano = behaviourService.create(stranger, alpha, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, true, null, true));
 
         assertThat(missions.cardsFor(alpha, today)).extracting(MissionService.MissionCard::behaviourId, MissionService.MissionCard::forMe)
                 .containsExactlyInAnyOrder(tuple(everyone.getId(), false), tuple(piano.getId(), true));
@@ -110,8 +111,8 @@ class TenancyIT {
         assertThatThrownBy(() -> behaviourService.create(stranger, kids.findById(1L).orElseThrow(), new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true)))
                 .isInstanceOf(DomainException.class).extracting("status").isEqualTo(HttpStatus.NOT_FOUND);
 
-        var report = missions.submit(alpha, piano.getId(), today, null);
-        behaviourService.update(stranger, piano.getId(), bravo, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, false, null, true));
+        var report = missions.submit(alpha, piano.getId(), today, "photo");
+        behaviourService.update(stranger, piano.getId(), bravo, new BehaviourService.Input("Piano", 15, Behaviour.Kind.DAILY, true, null, true));
         assertThat(missions.cardsFor(alpha, today)).extracting(MissionService.MissionCard::behaviourId).doesNotContain(piano.getId());
         assertThat(missions.cardsFor(bravo, today)).extracting(MissionService.MissionCard::behaviourId).contains(piano.getId());
         missions.approve(report.getId(), stranger, 0);

@@ -21,5 +21,13 @@ h2 { font: 700 22px var(--display); margin: 0 0 10px; }
   .s { font-size: 12px; color: var(--ink2); margin-top: auto; }
   .tag { position: absolute; top: 14px; right: 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1.5px solid var(--accent); border-radius: 999px; padding: 2px 8px; } }
 .stamp { position: absolute; inset: 0; background: var(--good); color: #101; display: flex; align-items: center; justify-content: center; font: 700 22px var(--display); opacity: .96; pointer-events: none; animation: slam .45s cubic-bezier(.2,1.5,.3,1); }
+.freeze { font-size: 11px; font-weight: 800; color: var(--accent); margin-top: 6px;
+  &.used { color: var(--ink2); font-weight: 700; } }
+.late { background: var(--panel); border: 2px dashed var(--accent); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px;
+  h2 { margin-bottom: 2px; }
+  p { margin: 0 0 12px; }
+  .card { background: var(--panel2); } }
+.stamp.logged { flex-direction: column; gap: 6px; background: var(--tan); font-size: 17px; text-align: center; padding: 10px;
+  small { font: 700 12px var(--body); } }
 .error { color: #ff5e5b; font-weight: 800; }
 @keyframes slam { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } }

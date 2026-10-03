@@ -100,6 +100,7 @@ Set these on **both** `dev` and `prod` (values differ). Names are exactly what `
 | secret | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | from step 2 |
 | var | `VAPID_PUBLIC_KEY` / `VAPID_SUBJECT` | step 7; leave empty until then (push is silently off) |
 | secret | `VAPID_PRIVATE_KEY` | step 7 |
+| secret | `TICK_SECRET` | step 7b; any long random string (`openssl rand -hex 32`). Empty = the tick endpoint is off and no evening reminders go out |
 
 `CORS_ORIGINS` depends on the Pages project names you pick in step 6; pages.dev subdomains are `<project>.pages.dev`,
 so choose the names now and fill this in before the first backend deploy.
@@ -182,6 +183,19 @@ Set `VAPID_PUBLIC_KEY` (var), `VAPID_PRIVATE_KEY` (secret) and `VAPID_SUBJECT` (
 environment and redeploy the backend. Without a public key the backend logs `Push disabled` and everything else works.
 
 Push only arrives in the **installed** app (production build, HTTPS) — not in a browser tab.
+
+## 7b. Evening reminders (Cloud Scheduler, once per environment)
+
+Kids with missions still open get one push at the household's reminder time (default 18:30 local; parents change it
+under Approvals → Settings). Cloud Run scales to zero, so the backend can't keep its own timer: Cloud Scheduler wakes
+it every 15 minutes instead. Set the `TICK_SECRET` secret first and redeploy, then (prod shown; use `missionhq-dev` and
+the dev secret for dev):
+```bash
+gcloud services enable cloudscheduler.googleapis.com
+gcloud scheduler jobs create http missionhq-prod-tick --location=europe-west1 --schedule="*/15 * * * *"   --http-method=POST --uri="<prod Cloud Run URL>/api/v1/internal/tick" --headers="X-Tick-Secret=<TICK_SECRET>"
+```
+Check it with `gcloud scheduler jobs run missionhq-prod-tick --location=europe-west1`; the response body says how many
+kids were reminded. Each household gets at most one reminder a day, however many ticks arrive.
 
 ## 8. Devices
 

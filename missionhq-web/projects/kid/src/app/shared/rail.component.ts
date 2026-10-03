@@ -6,6 +6,7 @@ import { SessionService } from '../core/session.service';
 import { SoundService } from '../core/sound.service';
 import { ThemeService } from '../core/theme.service';
 import { PushService } from '../core/push.service';
+import { IdleService } from '../core/idle.service';
 
 /** Left rail: who you are, your rank, and where you can go. Shared by every kid screen. */
 @Component({
@@ -22,7 +23,8 @@ import { PushService } from '../core/push.service';
         <a class="navbtn" routerLink="/locker" routerLinkActive="on">{{ t().locker }}</a>
         <a class="navbtn" routerLink="/squad" routerLinkActive="on">{{ t().squad }}</a>
       </nav>
-      <button class="mute" (click)="sound.muted.set(!sound.muted())">{{ sound.muted() ? 'Sound off' : 'Sound on' }}</button>
+      @if (session.shared()) { <button class="mute switch" (click)="idle.release()">Switch kid</button> }
+      <button class="mute" [class.after]="session.shared()" (click)="sound.muted.set(!sound.muted())">{{ sound.muted() ? 'Sound off' : 'Sound on' }}</button>
       @if (push.supported() && push.state() === 'unknown') {
         <button class="mute alert" (click)="push.enable()">Turn on HQ alerts</button>
       }
@@ -39,6 +41,8 @@ import { PushService } from '../core/push.service';
     .navbtn.on { background: var(--panel2); border-color: var(--line); }
     .navbtn.off { opacity: .4; cursor: default; }
     .alert { margin-top: 0; border-color: var(--accent); color: var(--accent); }
+    .switch { border-color: var(--accent); color: var(--accent); }
+    .mute.after { margin-top: 0; }
     .mute { margin-top: auto; background: transparent; border: 2px solid var(--line); color: var(--ink2); font: 700 12px var(--body); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
     .small { font-size: 12px; }
   `,
@@ -47,7 +51,8 @@ export class RailComponent {
   readonly state = inject(KidStateService);
   readonly sound = inject(SoundService);
   readonly push = inject(PushService);
-  private readonly session = inject(SessionService);
+  readonly session = inject(SessionService);
+  readonly idle = inject(IdleService);
   readonly t = inject(ThemeService).t;
   readonly initial = computed(() => (this.state.me()?.callsign ?? this.session.current()?.callsign ?? '?').charAt(0));
 }

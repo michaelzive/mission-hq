@@ -8,6 +8,8 @@ import { AvatarComponent } from '../../shared/avatar.component';
 import { RailComponent } from '../../shared/rail.component';
 import { CelebrationPlayerComponent } from '../hq/celebration-player.component';
 import { SuggestSheetComponent } from './suggest-sheet.component';
+import { SessionService } from '../../core/session.service';
+import { PinPadComponent } from '../../shared/pin-pad.component';
 
 const MAX_PENDING = 3;
 const RANK_NAMES: Record<ThemeCode, string[]> = {
@@ -22,7 +24,7 @@ const SLOT_LABEL: Record<string, string> = { headgear: 'Headgear', eyes: 'Eyes',
  */
 @Component({
   selector: 'kid-shop',
-  imports: [RailComponent, SuggestSheetComponent, CelebrationPlayerComponent, AvatarComponent],
+  imports: [RailComponent, SuggestSheetComponent, CelebrationPlayerComponent, AvatarComponent, PinPadComponent],
   templateUrl: './shop.component.html',
   styleUrl: './shop.component.scss',
 })
@@ -33,6 +35,7 @@ export class ShopComponent implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly player = viewChild.required(CelebrationPlayerComponent);
   readonly state = inject(KidStateService);
+  readonly session = inject(SessionService);
   private readonly theme = inject(ThemeService);
   readonly t = this.theme.t;
 
@@ -44,6 +47,8 @@ export class ShopComponent implements OnInit {
   readonly confirming = signal<Reward | null>(null);
   readonly error = signal<string | null>(null);
   readonly toast = signal<string | null>(null);
+  /** On a shared tablet, the purchase waiting for the kid's code. */
+  readonly spending = signal<(() => void) | null>(null);
 
   readonly balance = computed(() => this.state.me()?.balance ?? 0);
   readonly pendingCount = computed(() => this.rewards().filter(r => r.status === 'PENDING').length);
@@ -75,6 +80,15 @@ export class ShopComponent implements OnInit {
   tierLabel(r: Reward) { return r.termGoal ? 'Term goal' : r.tier ? `Tier ${r.tier}` : ''; }
 
   askRedeem(r: Reward) { if (this.affordable(r)) { this.sound.tap(); this.confirming.set(r); } }
+
+  /** Spending points on a shared tablet takes the kid's code, so a sibling can't spend them. */
+  confirmRedeem(r: Reward) { this.gate(() => this.redeem(r)); }
+  confirmBuy(i: CosmeticItem) { if (this.canBuy(i)) this.gate(() => this.buy(i)); }
+  private gate(go: () => void) {
+    if (!this.session.shared()) { go(); return; }
+    this.confirming.set(null);
+    this.spending.set(go);
+  }
 
   async redeem(r: Reward) {
     this.confirming.set(null);

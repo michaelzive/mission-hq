@@ -35,7 +35,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(deviceTokenFilter, BasicAuthenticationFilter.class)
             .authorizeHttpRequests(a -> a
-                .requestMatchers("/api/v1/devices/pair", "/api/v1/photos/**", "/api/v1/push/public-key", "/api/v1/invites/preview", "/actuator/health").permitAll()
+                .requestMatchers("/api/v1/devices/pair", "/api/v1/photos/**", "/api/v1/push/public-key", "/api/v1/invites/preview", "/api/v1/internal/tick", "/actuator/health").permitAll()
                 .requestMatchers("/api/v1/me/**").hasRole("KID")
                 .requestMatchers("/api/v1/auth/me", "/api/v1/invites/accept").hasAnyRole("PARENT", "VISITOR")
                 .requestMatchers("/api/v1/**").hasRole("PARENT")

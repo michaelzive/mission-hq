@@ -3,10 +3,12 @@ package com.family.missionhq.api;
 import com.family.missionhq.celebration.Celebration;
 import com.family.missionhq.celebration.CelebrationService;
 import com.family.missionhq.cosmetic.CosmeticService;
+import com.family.missionhq.household.HouseholdClock;
 import com.family.missionhq.household.HouseholdRepository;
 import com.family.missionhq.kid.KidRepository;
 import com.family.missionhq.ledger.PointEntryRepository;
 import com.family.missionhq.mission.MissionService;
+import com.family.missionhq.mission.StreakService;
 import com.family.missionhq.rank.RankService;
 import com.family.missionhq.reward.Reward;
 import com.family.missionhq.reward.RewardRepository;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -39,9 +42,12 @@ public class KidController {
     private final PointEntryRepository ledger;
     private final CosmeticService cosmetics;
     private final SquadService squad;
+    private final StreakService streaks;
+    private final HouseholdClock clock;
     private final ApplicationEventPublisher events;
 
-    public record MeView(Long id, String callsign, String themeCode, int balance, int lifetimeEarned, int streakDays,
+    /** streakFreezeReady: this week's one missed-day freeze is still unspent. */
+    public record MeView(Long id, String callsign, String themeCode, int balance, int lifetimeEarned, int streakDays, boolean streakFreezeReady,
                          RankService.RankView rank, TermGoal termGoal, BigDecimal pointsPerCurrencyUnit, CosmeticService.AvatarView avatar) {}
     public record TermGoal(Long rewardId, String name, int target, int progress) {}
 
@@ -51,27 +57,42 @@ public class KidController {
         var hh = households.findById(kid.getHouseholdId()).orElseThrow();
         var goal = rewardRepo.findByKidIdAndTermGoalTrueAndStatus(kid.getId(), Reward.Status.ACTIVE)
                 .map(r -> new TermGoal(r.getId(), r.getName(), r.getPrice(), Math.min(r.getPrice(), kid.getLifetimeEarned()))).orElse(null);
+        var streak = streaks.current(kid);
         return new MeView(kid.getId(), kid.getCallsign(), kid.getThemeCode(), kid.getBalance(), kid.getLifetimeEarned(),
-                kid.getStreakDays(), ranks.view(kid), goal, hh.getPointsPerCurrencyUnit(), cosmetics.avatar(kid));
+                streak.days(), streak.freezeReady(), ranks.view(kid), goal, hh.getPointsPerCurrencyUnit(), cosmetics.avatar(kid));
     }
 
     @GetMapping("/missions")
     public List<MissionService.MissionCard> missions(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return missions.cardsFor(current.get(), date != null ? date : LocalDate.now());
+        return missions.cardsFor(current.get(), date != null ? date : today());
+    }
+
+    /** Yesterday's missions not yet reported, while they still can be (until {@code until}); empty once the window closes. */
+    public record LateMissions(LocalDate date, LocalTime until, List<MissionService.MissionCard> missions) {}
+
+    @GetMapping("/missions/late")
+    public LateMissions lateMissions() {
+        var kid = current.get();
+        var date = clock.lateDate(kid.getHouseholdId());
+        if (date == null) return new LateMissions(null, null, List.of());
+        var open = missions.cardsFor(kid, date).stream().filter(c -> c.status().equals("TODO")).toList();
+        return new LateMissions(date, HouseholdClock.LATE_REPORT_UNTIL, open);
     }
 
     @PostMapping("/missions/{behaviourId}/photo-url")
     public com.family.missionhq.storage.PhotoStorage.UploadTicket photoUrl(@PathVariable Long behaviourId, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return missions.photoTicket(current.get(), behaviourId, date != null ? date : LocalDate.now());
+        return missions.photoTicket(current.get(), behaviourId, date != null ? date : today());
     }
 
     public record SubmitRequest(LocalDate date, String photoKey) {}
 
     @PostMapping("/missions/{behaviourId}/submit")
     public Map<String, Object> submit(@PathVariable Long behaviourId, @RequestBody SubmitRequest body) {
-        var c = missions.submit(current.get(), behaviourId, body.date() != null ? body.date() : LocalDate.now(), body.photoKey());
+        var c = missions.submit(current.get(), behaviourId, body.date() != null ? body.date() : today(), body.photoKey());
         return Map.of("completionId", c.getId(), "status", c.getStatus());
     }
+
+    private LocalDate today() { return clock.today(current.get().getHouseholdId()); }
 
     @GetMapping("/celebrations")
     public List<Celebration> celebrations() { return celebrations.unplayed(current.get().getId()); }

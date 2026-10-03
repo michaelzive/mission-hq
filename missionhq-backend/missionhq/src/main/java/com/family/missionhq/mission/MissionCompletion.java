@@ -18,6 +18,11 @@ public class MissionCompletion {
     private String photoKey;
     private Instant submittedAt = Instant.now();
     private Instant reviewedAt;
+    /** Null when the report was approved automatically (a mission that needs no photo). */
     private Long reviewedBy;
     private String note;
+    /** A parent logged it for the kid: paid at the household's parent-log rate, never counts toward the streak. */
+    private boolean loggedByParent;
+    /** The mission points actually paid, before any extra bonus. Null until approved. */
+    private Integer pointsAwarded;
 }

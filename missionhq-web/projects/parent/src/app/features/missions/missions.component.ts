@@ -1,10 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Behaviour, BehaviourInput, KidSummary, ParentApi } from 'shared';
+import { Behaviour, BehaviourInput, BehaviourKind, KidSummary, ParentApi } from 'shared';
 
 const EVERYONE = 0;
-const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10, kind: 'DAILY', requiresPhoto: true, bonusDate: null, active: true });
+/** New missions default to no photo: the kid taps "done" and the points land straight away. Tick "photo" where you want proof. */
+const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10, kind: 'DAILY', requiresPhoto: false, bonusDate: null, active: true });
+const KIND_LABEL: Record<BehaviourKind, string> = { DAILY: 'Daily', WEEKLY: 'Weekly', BONUS: 'Bonus' };
 
 /**
  * The household's missions — for everyone or directed at one kid: daily missions and one-day bonus missions, with
@@ -15,7 +17,8 @@ const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10
   imports: [FormsModule, NgTemplateOutlet],
   template: `
     <h1>Missions</h1>
-    <p class="muted">A mission is for everyone or for one kid. Daily ones can be done once a day by each kid who sees them; a bonus mission only shows on its date.</p>
+    <p class="muted">A mission is for everyone or for one kid. Daily ones can be done once a day by each kid who sees them, weekly ones once a week (Monday to Sunday); a bonus mission only shows on its date.</p>
+    <p class="muted">Missions without a photo are trusted: the kid taps "done" and gets the points straight away. Ask for a photo where you want to check first; those wait in Approvals.</p>
     @if (error(); as e) { <p class="error">{{ e }}</p> }
 
     <section class="card add">
@@ -52,7 +55,7 @@ const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10
             <div class="who">
               <b>{{ m.title }}</b> <span class="pts">+{{ m.points }}</span>
               <div class="muted">
-                {{ m.kind === 'BONUS' ? 'Bonus on ' + m.bonusDate : 'Daily' }} · {{ m.requiresPhoto ? 'photo required' : 'no photo' }}
+                {{ m.kind === 'BONUS' ? 'Bonus on ' + m.bonusDate : kindLabel(m) }} · {{ m.requiresPhoto ? 'photo, you approve' : 'no photo, approved straight away' }}
                 @if (!m.active) { · <b>retired</b> }
               </div>
             </div>
@@ -79,12 +82,13 @@ const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10
       <div class="row">
         <select [ngModel]="model().kind" (ngModelChange)="set({ kind: $event })">
           <option value="DAILY">Daily</option>
+          <option value="WEEKLY">Weekly (once a week)</option>
           <option value="BONUS">Bonus (one day only)</option>
         </select>
         @if (model().kind === 'BONUS') {
           <input type="date" [ngModel]="model().bonusDate" (ngModelChange)="set({ bonusDate: $event || null })" />
         }
-        <label class="check"><input type="checkbox" [ngModel]="model().requiresPhoto" (ngModelChange)="set({ requiresPhoto: $event })" /> Photo required</label>
+        <label class="check"><input type="checkbox" [ngModel]="model().requiresPhoto" (ngModelChange)="set({ requiresPhoto: $event })" /> Photo required (you approve it)</label>
       </div>
     </ng-template>
   `,
@@ -108,6 +112,7 @@ const blank = (kidId: number): BehaviourInput => ({ kidId, title: '', points: 10
   `,
 })
 export class MissionsComponent implements OnInit {
+  kindLabel(m: Behaviour) { return KIND_LABEL[m.kind]; }
   private readonly api = inject(ParentApi);
   readonly kids = signal<KidSummary[]>([]);
   readonly missions = signal<Behaviour[]>([]);

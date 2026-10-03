@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApprovalQueue, AuthMe, Behaviour, BehaviourInput, CreatedInvite, Household, InvitePreview, ParentInviteView, ParentMember, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
+import { ApprovalQueue, AuthMe, Behaviour, BehaviourInput, CreatedInvite, Household, HouseholdSettings, InvitePreview, MissionCard, ParentInviteView, ParentMember, KidInput, KidSummary, OpenRedemption, RewardAdmin, RewardAdminInput } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ParentApi {
@@ -39,5 +39,11 @@ export class ParentApi {
   declineReward(id: number) { return firstValueFrom(this.http.post<void>(`/approvals/rewards/${id}/decline`, {})); }
   bonus(kidId: number, points: number, reason: string) { return firstValueFrom(this.http.post<void>(`/kids/${kidId}/bonus`, { points, reason })); }
   setRate(pointsPerCurrencyUnit: number) { return firstValueFrom(this.http.put<void>('/household/exchange-rate', { pointsPerCurrencyUnit })); }
+  saveSettings(body: HouseholdSettings) { return firstValueFrom(this.http.put<Household>('/household/settings', body)); }
+  /** A kid's missions as they see them that day (ISO date, default today), to log one a parent saw done. */
+  kidMissions(kidId: number, date?: string) { return firstValueFrom(this.http.get<MissionCard[]>(`/kids/${kidId}/missions`, { params: date ? { date } : {} })); }
+  logMission(kidId: number, behaviourId: number, date?: string) {
+    return firstValueFrom(this.http.post<MissionCard>(`/kids/${kidId}/missions/${behaviourId}/log`, { date: date ?? null }));
+  }
   pairingCode(kidId: number) { return firstValueFrom(this.http.post<{ pairingCode: string }>(`/kids/${kidId}/pairing-code`, {})); }
 }

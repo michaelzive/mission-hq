@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { KidApi } from 'shared';
 import { SessionService } from '../../core/session.service';
 import { ThemeService } from '../../core/theme.service';
@@ -9,11 +9,12 @@ import { PushService } from '../../core/push.service';
 
 @Component({
   selector: 'kid-pair',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <div class="pair">
-      <h1>Pair this tablet</h1>
+      <h1>{{ adding ? 'Add a kid to this tablet' : 'Pair this tablet' }}</h1>
       <p class="muted">Ask a parent for your six-digit code.</p>
+      @if (adding) { <p class="muted small">With more than one kid, this becomes a shared tablet: each kid picks themselves with a secret code.</p> }
       <input inputmode="numeric" maxlength="6" placeholder="000000" [(ngModel)]="code" (keyup.enter)="pair()" autofocus />
       @if (error()) { <p class="error">{{ error() }}</p> }
       <button class="btn" [disabled]="code.length !== 6 || busy()" (click)="pair()">{{ busy() ? 'Pairing…' : 'Report for duty' }}</button>
@@ -22,6 +23,7 @@ import { PushService } from '../../core/push.service';
       } @else if (!install.isInstalled()) {
         <p class="muted small">Tip: add this page to the home screen so it opens like a game.</p>
       }
+      @if (adding) { <a class="btn ghost" routerLink="/who">Back</a> }
     </div>`,
   styles: `
     .pair { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
@@ -38,6 +40,8 @@ export class PairComponent {
   readonly install = inject(InstallService);
   readonly push = inject(PushService);
   code = '';
+  /** Already paired: this pairs another kid on the same tablet rather than replacing the first. */
+  readonly adding = this.session.isPaired();
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -45,7 +49,9 @@ export class PairComponent {
     this.busy.set(true); this.error.set(null);
     try {
       const r = await this.api.pair(this.code);
-      this.session.set(r); this.theme.code.set(r.themeCode);
+      this.session.add(r);
+      if (this.session.shared()) { await this.router.navigate(['/who']); return; }
+      this.theme.code.set(r.themeCode);
       // Still inside the tap that pressed "Report for duty", so the permission prompt is allowed.
       if (this.push.supported() && this.push.state() === 'unknown') await this.push.enable().catch(() => {});
       await this.router.navigate(['/hq']);
