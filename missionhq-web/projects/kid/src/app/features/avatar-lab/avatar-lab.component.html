@@ -1,0 +1,59 @@
+<div class="lab">
+  <div class="stage">
+    <canvas #canvas></canvas>
+    @if (loading()) { <div class="overlay">Loading…</div> }
+    @if (error(); as e) { <div class="overlay error">{{ e }}</div> }
+    @if (stats(); as s) {
+      <div class="hud">{{ s.fps }} fps · {{ s.tier }} · {{ s.pixelRatio }}× · {{ s.triangles }} tris · {{ s.drawCalls }} draws</div>
+    }
+  </div>
+
+  <aside class="panel">
+    <div class="head">
+      <button class="opt" (click)="back()">← Back</button>
+      <div>
+        <h1>Avatar lab</h1>
+        <small>{{ character() }}</small>
+      </div>
+    </div>
+
+    <label>Moves</label>
+    <div class="row">
+      @for (e of caps().emotes; track e) { <button class="opt" (click)="emote(e)">{{ emoteLabels[e] }}</button> }
+      @empty { <small>This model has no moves the lab recognises.</small> }
+    </div>
+
+    @for (r of caps().regions; track r) {
+      <label>{{ regionLabels[r] }}</label>
+      <div class="row">
+        @for (c of colours(); track $index) {
+          <button class="swatch" [class.on]="tints()[r] === $index" [style.background]="c" [attr.aria-label]="regionLabels[r] + ' ' + ($index + 1)" (click)="pickColour(r, $index)"></button>
+        }
+      </div>
+    }
+
+    <label>Gear</label>
+    <div class="row">
+      @for (a of accessories; track a.id) {
+        <button class="opt" [class.on]="gear()[a.socket] === a.id" [disabled]="!caps().sockets.includes(a.socket)" (click)="toggleGear(a)">
+          {{ a.name }} <small>{{ a.socket }}</small>
+        </button>
+      }
+    </div>
+
+    <label>Quality</label>
+    <div class="row">
+      @for (q of tierModes; track q) { <button class="opt" [class.on]="tierMode() === q" (click)="setTierMode(q)">{{ q }}</button> }
+      @if (tierMode() === 'auto' && measured(); as m) { <small>measured: {{ m }}</small> }
+    </div>
+
+    <label>Portrait</label>
+    <div class="row portrait-row">
+      <button class="opt" (click)="snapshot()">Take portrait</button>
+      @if (portrait(); as p) { <img class="portrait" [src]="p" alt="Portrait snapshot"> }
+    </div>
+
+    <label for="glb">Try your own model (.glb)</label>
+    <input id="glb" type="file" accept=".glb,model/gltf-binary" (change)="loadFile($event)">
+  </aside>
+</div>

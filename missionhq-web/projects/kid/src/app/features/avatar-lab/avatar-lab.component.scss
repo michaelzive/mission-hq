@@ -1,0 +1,17 @@
+.lab { display: flex; height: 100vh; overflow: hidden; }
+.stage { position: relative; flex: 1; min-width: 0; background: radial-gradient(circle at 50% 45%, var(--panel2), var(--bg)); }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 22px var(--display); color: var(--ink2); pointer-events: none;
+  &.error { color: #ff5e5b; padding: 24px; text-align: center; } }
+.hud { position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: var(--radius); background: rgb(0 0 0 / .45); color: #fff; font: 600 12px ui-monospace, monospace; }
+.panel { width: 340px; flex-shrink: 0; padding: 18px 20px; overflow-y: auto; background: var(--panel); border-left: 2px solid var(--line); }
+.head { display: flex; gap: 12px; align-items: center; h1 { margin: 0; font: 700 22px var(--display); } }
+small { color: var(--ink2); font-size: 12px; }
+label { font-size: 13px; color: var(--ink2); margin: 14px 0 6px; display: block; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.swatch { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; &.on { border-color: var(--ink); } }
+.opt { background: var(--panel2); border: 2px solid var(--line); color: var(--ink); border-radius: var(--radius); padding: 8px 12px; cursor: pointer; font: 700 14px var(--body);
+  &.on { border-color: var(--accent); }
+  &:disabled { opacity: .4; cursor: default; } }
+.portrait { width: 96px; height: 96px; border-radius: 50%; background: var(--panel2); border: 2px solid var(--line); }
+input[type=file] { color: var(--ink2); font-size: 13px; max-width: 100%; }
