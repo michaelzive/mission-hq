@@ -4,6 +4,22 @@ What a character `.glb` must contain for `AvatarStage` to pick everything up wit
 Check a fresh export at `/avatar-lab` → "Try your own model": every move, colour row and gear button the lab
 enables is something it found in the file.
 
+## From Meshy in one command
+
+`scripts/avatar/prepare_character.py` does everything below to a rigged, animated Meshy download (run from
+`missionhq-web`; tested with Blender 5.2):
+
+```
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup ^
+  --python scripts/avatar/prepare_character.py -- --src %USERPROFILE%\Downloads\Meshy_AI_knight.glb --id knight
+```
+
+It writes `<id>.glb` and `<id>-regions.png` here, a `.blend` to `Documents\MissionHQ avatars`, and prints what it
+chose: which Meshy clip became each move, where the sockets went, which colours became regions, and a manifest line
+to paste into `character-manifest.ts`. Pin anything it guessed wrong and run it again:
+`--clip celebrate=Backflip`, `--region trim=#f2670f`, `--nudge head=up:0.02,scale:1.2`.
+The space explorer is `--id space-explorer --region trim=#f2670f`.
+
 ## Character file
 
 - **Format**: binary glTF (`.glb`), one file per character, in `projects/kid/public/avatars/3d/<id>.glb`.
