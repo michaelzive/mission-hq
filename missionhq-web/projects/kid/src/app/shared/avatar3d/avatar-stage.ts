@@ -5,7 +5,8 @@ import { Accessory } from './accessories';
 import { CharacterManifest, Clip, EMOTES, Emote, REGIONS, Region, SOCKETS, STAGE_HEIGHT, SocketName, SocketSpec } from './character-manifest';
 
 export type Tier = 'high' | 'low';
-export interface StageStats { fps: number; triangles: number; drawCalls: number; pixelRatio: number; tier: Tier }
+/** cap: the frame-rate limit in force, 0 while the auto-tier measurement runs uncapped. */
+export interface StageStats { fps: number; cap: number; triangles: number; drawCalls: number; pixelRatio: number; tier: Tier }
 export interface StageOptions {
   /** Omit to measure: start high, drop to low if the first seconds run under AUTO_MIN_FPS, and report via onAutoTier. */
   tier?: Tier;
@@ -16,6 +17,11 @@ export interface StageOptions {
 export interface Capabilities { regions: Region[]; sockets: SocketName[]; emotes: Emote[] }
 
 const AUTO_MIN_FPS = 40;
+// An idle loop looks the same at 30 fps; rendering at the screen's 90-120 Hz would only drain the battery and warm the tablet.
+const IDLE_FPS = 30;
+const ACTIVE_FPS = 60;
+/** How long to stay at ACTIVE_FPS after a finger lifts, while the orbit damping glides to a stop. */
+const SETTLE_MS = 1000;
 const FADE = 0.25;
 
 /**
@@ -42,6 +48,9 @@ export class AvatarStage {
   private gear = new Map<SocketName, THREE.Object3D>();
   private loadSeq = 0;
   private lastTime = 0;
+  private nextFrame = 0;
+  private dragging = false;
+  private settleUntil = 0;
 
   private tier: Tier;
   private measuring: boolean;
@@ -68,6 +77,8 @@ export class AvatarStage {
     this.controls.target.set(0, 1, 0);
     Object.assign(this.controls, { enablePan: false, enableZoom: false, enableDamping: true, minPolarAngle: Math.PI / 3, maxPolarAngle: Math.PI / 1.9 });
     this.controls.update();
+    this.controls.addEventListener('start', () => { this.dragging = true; });
+    this.controls.addEventListener('end', () => { this.dragging = false; this.settleUntil = performance.now() + SETTLE_MS; });
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.6));
     this.sun.position.set(2.5, 5, 4);
@@ -166,6 +177,14 @@ export class AvatarStage {
   }
 
   private frame(time: number) {
+    const cap = this.cap(time);
+    if (cap) {
+      // Render on the first screen refresh at or after each slot, so a 90 Hz screen capped at 60 renders 2 frames in 3.
+      // The 1 ms slack absorbs timestamp jitter that would otherwise push a frame into the next refresh.
+      if (time < this.nextFrame - 1) return;
+      const interval = 1000 / cap;
+      this.nextFrame = time - this.nextFrame > interval ? time + interval : this.nextFrame + interval;
+    }
     // Clamped so a stretch in the background (screen off, app switched) doesn't land as one giant animation step.
     const dt = this.lastTime ? Math.min((time - this.lastTime) / 1000, 0.1) : 0;
     this.lastTime = time;
@@ -182,7 +201,7 @@ export class AvatarStage {
     if (this.fpsTime >= 0.5) {
       const info = this.renderer.info.render;
       this.options.onStats?.({ fps: Math.round(this.fpsFrames / this.fpsTime), triangles: info.triangles, drawCalls: info.calls,
-        pixelRatio: this.renderer.getPixelRatio(), tier: this.tier });
+        cap: this.cap(performance.now()), pixelRatio: this.renderer.getPixelRatio(), tier: this.tier });
       this.fpsFrames = 0;
       this.fpsTime = 0;
     }
@@ -195,6 +214,14 @@ export class AvatarStage {
     const fps = 120 / this.measureTime;
     if (fps < AUTO_MIN_FPS) { this.tier = 'low'; this.applyTier(); }
     this.options.onAutoTier?.(this.tier);
+  }
+
+  /** Uncapped while measuring (a cap would read as a slow device), 60 while moving or being spun, else 30. */
+  private cap(now: number): number {
+    if (this.measuring) return 0;
+    const idle = this.actions.get('idle');
+    const moving = this.current !== null && this.current !== idle;
+    return moving || this.dragging || now < this.settleUntil ? ACTIVE_FPS : IDLE_FPS;
   }
 
   private applyTier() {

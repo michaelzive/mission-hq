@@ -4,7 +4,7 @@
     @if (loading()) { <div class="overlay">Loading…</div> }
     @if (error(); as e) { <div class="overlay error">{{ e }}</div> }
     @if (stats(); as s) {
-      <div class="hud">{{ s.fps }} fps · {{ s.tier }} · {{ s.pixelRatio }}× · {{ s.triangles }} tris · {{ s.drawCalls }} draws</div>
+      <div class="hud">{{ s.fps }} fps{{ s.cap ? " (cap " + s.cap + ")" : " (uncapped)" }} · {{ s.tier }} · {{ s.pixelRatio }}× · {{ s.triangles }} tris · {{ s.drawCalls }} draws</div>
     }
   </div>
 
