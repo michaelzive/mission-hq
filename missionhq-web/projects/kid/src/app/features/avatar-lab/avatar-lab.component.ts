@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { ThemeService } from '../../core/theme.service';
 import { ACCESSORIES, Accessory } from '../../shared/avatar3d/accessories';
 import { AvatarStage, Capabilities, StageStats, Tier } from '../../shared/avatar3d/avatar-stage';
-import { CharacterManifest, Emote, Region, STAND_IN, SocketName } from '../../shared/avatar3d/character-manifest';
+import { CHARACTERS, CharacterManifest, Emote, Region, SocketName } from '../../shared/avatar3d/character-manifest';
 
 type TierMode = 'auto' | Tier;
 const TIER_KEY = 'mhq.avatar.tier';
@@ -30,10 +30,11 @@ export class AvatarLabComponent {
   readonly emoteLabels = EMOTE_LABELS;
   readonly regionLabels = REGION_LABELS;
   readonly accessories = ACCESSORIES;
+  readonly characters = CHARACTERS;
   readonly tierModes: TierMode[] = ['auto', 'high', 'low'];
   readonly colours = computed(() => this.theme.config().avatarColours);
 
-  readonly character = signal(STAND_IN.name);
+  readonly character = signal(CHARACTERS[0].name);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly stats = signal<StageStats | null>(null);
@@ -52,7 +53,7 @@ export class AvatarLabComponent {
         onStats: s => this.stats.set(s),
         onAutoTier: t => { this.measured.set(t); writeTier(t); },
       });
-      void this.load(STAND_IN);
+      void this.load(CHARACTERS[0]);
     });
     inject(DestroyRef).onDestroy(() => {
       this.stage?.dispose();
@@ -60,6 +61,8 @@ export class AvatarLabComponent {
       this.revoke(this.portrait());
     });
   }
+
+  pick(c: CharacterManifest) { void this.load(c); }
 
   emote(e: Emote) { this.stage?.emote(e); }
 

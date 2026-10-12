@@ -30,6 +30,11 @@ export interface CharacterManifest {
   url: string;
   /** Turn the model to face the camera, in degrees, for exports that don't face +Z. */
   yaw?: number;
+  /**
+   * Image in the same UV layout as the colour texture whose red/green/blue channels mark the main/trim/accent areas,
+   * for characters whose colours are baked into one texture (see ASSETS.md). Takes the place of region_* materials.
+   */
+  regionMask?: string;
   clips?: Partial<Record<Clip, string>>;
   regions?: Partial<Record<Region, string>>;
   sockets?: Partial<Record<SocketName, SocketSpec>>;
@@ -37,6 +42,11 @@ export interface CharacterManifest {
 
 /** Characters are scaled to this height so accessories can be authored once, in the same units, for every body. */
 export const STAGE_HEIGHT = 2;
+
+/** First Meshy character, authored to ASSETS.md. Meshy bakes every colour into one texture, so its regions come from a mask. */
+export const SPACE_EXPLORER: CharacterManifest = {
+  id: 'space-explorer', name: 'Space explorer', url: 'avatars/3d/space-explorer.glb', regionMask: 'avatars/3d/space-explorer-regions.png',
+};
 
 /** three.js's RobotExpressive (Tomás Laulhé / Quaternius, CC0): a rigged, animated humanoid to build against until the first Meshy character exists. */
 export const STAND_IN: CharacterManifest = {
@@ -53,3 +63,5 @@ export const STAND_IN: CharacterManifest = {
     hand: { node: 'Palm2.R', offset: [0, 0, 0] },
   },
 };
+
+export const CHARACTERS: CharacterManifest[] = [SPACE_EXPLORER, STAND_IN];

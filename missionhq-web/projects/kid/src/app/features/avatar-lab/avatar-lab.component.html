@@ -17,6 +17,11 @@
       </div>
     </div>
 
+    <label>Character</label>
+    <div class="row">
+      @for (c of characters; track c.id) { <button class="opt" [class.on]="character() === c.name" (click)="pick(c)">{{ c.name }}</button> }
+    </div>
+
     <label>Moves</label>
     <div class="row">
       @for (e of caps().emotes; track e) { <button class="opt" (click)="emote(e)">{{ emoteLabels[e] }}</button> }

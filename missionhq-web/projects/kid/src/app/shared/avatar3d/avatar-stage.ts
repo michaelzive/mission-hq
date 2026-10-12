@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Accessory } from './accessories';
 import { CharacterManifest, Clip, EMOTES, Emote, REGIONS, Region, SOCKETS, STAGE_HEIGHT, SocketName, SocketSpec } from './character-manifest';
+import { RegionTint } from './region-tint';
 
 export type Tier = 'high' | 'low';
 /** cap: the frame-rate limit in force, 0 while the auto-tier measurement runs uncapped. */
@@ -44,6 +45,7 @@ export class AvatarStage {
   private actions = new Map<Clip, THREE.AnimationAction>();
   private current: THREE.AnimationAction | null = null;
   private regionMaterials = new Map<Region, THREE.MeshStandardMaterial[]>();
+  private regionTint: RegionTint | null = null;
   private sockets = new Map<SocketName, THREE.Object3D>();
   private gear = new Map<SocketName, THREE.Object3D>();
   private loadSeq = 0;
@@ -101,8 +103,11 @@ export class AvatarStage {
   /** Replaces the current character. Gear and tints are not carried over; the caller re-applies its own state. */
   async load(manifest: CharacterManifest): Promise<Capabilities> {
     const seq = ++this.loadSeq;
-    const gltf = await new GLTFLoader().loadAsync(manifest.url);
-    if (seq !== this.loadSeq) { disposeTree(gltf.scene); return this.capabilities(); }
+    const [gltf, mask] = await Promise.all([
+      new GLTFLoader().loadAsync(manifest.url),
+      manifest.regionMask ? RegionTint.load(manifest.regionMask) : null,
+    ]);
+    if (seq !== this.loadSeq) { disposeTree(gltf.scene); mask?.dispose(); return this.capabilities(); }
     this.unloadCharacter();
 
     const model = gltf.scene;
@@ -120,6 +125,7 @@ export class AvatarStage {
     this.root = root;
 
     this.collectMaterials(model, manifest);
+    if (mask) { this.regionTint = RegionTint.attach(model, mask); if (!this.regionTint) mask.dispose(); }
     this.collectSockets(model, manifest);
     this.collectClips(model, gltf.animations, manifest);
     this.play('idle');
@@ -128,6 +134,7 @@ export class AvatarStage {
   }
 
   tint(region: Region, colour: string) {
+    this.regionTint?.set(region, colour);
     for (const m of this.regionMaterials.get(region) ?? []) m.color.set(colour);
   }
 
@@ -318,7 +325,7 @@ export class AvatarStage {
 
   private capabilities(): Capabilities {
     return {
-      regions: REGIONS.filter(r => this.regionMaterials.has(r)),
+      regions: REGIONS.filter(r => this.regionMaterials.has(r) || this.regionTint?.regions.includes(r)),
       sockets: SOCKETS.filter(s => this.sockets.has(s)),
       emotes: EMOTES.filter(e => this.actions.has(e)),
     };
@@ -330,6 +337,8 @@ export class AvatarStage {
     this.actions.clear();
     this.current = null;
     this.regionMaterials.clear();
+    this.regionTint?.dispose();
+    this.regionTint = null;
     this.sockets.clear();
     this.gear.clear();
     if (this.root) { this.root.removeFromParent(); disposeTree(this.root); this.root = null; }
